@@ -1,7 +1,7 @@
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import { existsSync, copyFileSync } from "node:fs";
-import path from "node:path";
+import { existsSync, writeFileSync } from "node:fs";
+import { DEMO_SEED_DB_BASE64 } from "./demo-seed-data";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
@@ -10,8 +10,11 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
  * `/tmp`, and `/tmp` isn't shared across instances or guaranteed to survive
  * a cold start. There's no persistent database configured yet (see
  * `prisma/schema.prisma` header for the Postgres migration path), so on
- * Vercel we seed a working copy into `/tmp` from a pre-built demo dataset
- * bundled with the deployment. Writes during a warm instance's lifetime
+ * Vercel we materialize a working copy into `/tmp` from a demo dataset
+ * embedded directly in the JS bundle (see src/lib/demo-seed-data.ts) —
+ * embedding it as a plain import sidesteps Vercel's output file tracing
+ * entirely, which is more predictable than trying to bundle a raw file via
+ * `outputFileTracingIncludes`. Writes during a warm instance's lifetime
  * work normally; a cold start resets to the bundled demo data. Remove this
  * block once a real hosted database is wired up.
  */
@@ -21,8 +24,7 @@ function resolveDatabaseUrl(): string {
   if (process.env.VERCEL) {
     const tmpDb = "/tmp/aspen-demo.db";
     if (!existsSync(tmpDb)) {
-      const bundledSeed = path.join(process.cwd(), "prisma", "demo-seed.db");
-      copyFileSync(bundledSeed, tmpDb);
+      writeFileSync(tmpDb, Buffer.from(DEMO_SEED_DB_BASE64, "base64"));
     }
     return `file:${tmpDb}`;
   }
