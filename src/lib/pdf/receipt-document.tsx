@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
 import { formatCLP, formatDateTime } from "@/lib/format";
 import { COMPANY_INFO } from "@/lib/company-info";
 
@@ -16,6 +16,8 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottom: "1.5pt solid #111111",
   },
+  headerLeft: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  logo: { width: 36, height: 36, objectFit: "contain" },
   companyName: { fontSize: 13, fontFamily: "Helvetica-Bold" },
   small: { fontSize: 8, color: "#444444", marginTop: 1 },
   docBox: { alignItems: "flex-end" },
@@ -47,10 +49,12 @@ const styles = StyleSheet.create({
   },
   colNum: { width: "6%" },
   colDesc: { width: "40%" },
+  colDescDiscounted: { width: "29%" },
   colDescWide: { width: "80%" },
   colQty: { width: "10%", textAlign: "right" },
   colQtyWide: { width: "14%", textAlign: "right" },
   colPrice: { width: "16%", textAlign: "right" },
+  colDiscount: { width: "11%", textAlign: "right" },
   colTax: { width: "12%", textAlign: "right" },
   colAmount: { width: "16%", textAlign: "right" },
   summaryBox: {
@@ -103,6 +107,8 @@ type SaleLine = {
   description: string;
   quantity: number;
   unitPrice: number;
+  discountPercent: number;
+  discountAmount: number;
   taxAmount: number;
   total: number;
   notes?: string | null;
@@ -125,8 +131,10 @@ export function VentaReceiptDocument({
   notes,
   lines,
   subtotal,
+  discountTotal,
   taxAmount,
   total,
+  logoSrc,
 }: {
   code: string;
   date: Date;
@@ -138,13 +146,17 @@ export function VentaReceiptDocument({
   notes?: string | null;
   lines: SaleLine[];
   subtotal: number;
+  discountTotal: number;
   taxAmount: number;
   total: number;
+  logoSrc?: string | null;
 }) {
+  const hasDiscount = lines.some((l) => l.discountAmount > 0);
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <Header docType="Comprobante de venta" code={code} date={date} />
+        <Header docType="Comprobante de venta" code={code} date={date} logoSrc={logoSrc} />
 
         <View style={styles.section}>
           <View style={styles.infoGrid}>
@@ -167,21 +179,29 @@ export function VentaReceiptDocument({
         <View style={styles.table}>
           <View style={styles.tableHeaderRow}>
             <Text style={styles.colNum}>#</Text>
-            <Text style={styles.colDesc}>Descripción</Text>
+            <Text style={hasDiscount ? styles.colDescDiscounted : styles.colDesc}>
+              Descripción
+            </Text>
             <Text style={styles.colQty}>Cant.</Text>
             <Text style={styles.colPrice}>P. unitario</Text>
+            {hasDiscount && <Text style={styles.colDiscount}>% Desc.</Text>}
             <Text style={styles.colTax}>IVA</Text>
             <Text style={styles.colAmount}>Importe</Text>
           </View>
           {lines.map((l) => (
             <View style={styles.tableRow} key={l.position}>
               <Text style={styles.colNum}>{l.position}</Text>
-              <View style={styles.colDesc}>
+              <View style={hasDiscount ? styles.colDescDiscounted : styles.colDesc}>
                 <Text>{l.description}</Text>
                 {l.notes && <Text style={styles.small}>{l.notes}</Text>}
               </View>
               <Text style={styles.colQty}>{l.quantity}</Text>
               <Text style={styles.colPrice}>{formatCLP(l.unitPrice)}</Text>
+              {hasDiscount && (
+                <Text style={styles.colDiscount}>
+                  {l.discountAmount > 0 ? `${l.discountPercent}%` : "—"}
+                </Text>
+              )}
               <Text style={styles.colTax}>{formatCLP(l.taxAmount)}</Text>
               <Text style={styles.colAmount}>{formatCLP(l.total)}</Text>
             </View>
@@ -193,6 +213,12 @@ export function VentaReceiptDocument({
             <Text>Subtotal</Text>
             <Text>{formatCLP(subtotal)}</Text>
           </View>
+          {discountTotal > 0 && (
+            <View style={styles.summaryRow}>
+              <Text>Descuentos</Text>
+              <Text>-{formatCLP(discountTotal)}</Text>
+            </View>
+          )}
           <View style={styles.summaryRow}>
             <Text>IVA (19%)</Text>
             <Text>{formatCLP(taxAmount)}</Text>
@@ -239,6 +265,7 @@ export function MovementReceiptDocument({
   reason,
   notes,
   lines,
+  logoSrc,
 }: {
   docType: string;
   code: string;
@@ -251,11 +278,12 @@ export function MovementReceiptDocument({
   reason?: string | null;
   notes?: string | null;
   lines: SimpleLine[];
+  logoSrc?: string | null;
 }) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <Header docType={docType} code={code} date={date} />
+        <Header docType={docType} code={code} date={date} logoSrc={logoSrc} />
 
         <View style={styles.section}>
           <View style={styles.infoGrid}>
@@ -303,14 +331,30 @@ export function MovementReceiptDocument({
   );
 }
 
-function Header({ docType, code, date }: { docType: string; code: string; date: Date }) {
+function Header({
+  docType,
+  code,
+  date,
+  logoSrc,
+}: {
+  docType: string;
+  code: string;
+  date: Date;
+  logoSrc?: string | null;
+}) {
   return (
     <View style={styles.headerRow}>
-      <View>
-        <Text style={styles.companyName}>{COMPANY_INFO.name}</Text>
-        <Text style={styles.small}>RUT {COMPANY_INFO.rut}</Text>
-        <Text style={styles.small}>{COMPANY_INFO.address}</Text>
-        <Text style={styles.small}>{COMPANY_INFO.email}</Text>
+      <View style={styles.headerLeft}>
+        {logoSrc && (
+          // eslint-disable-next-line jsx-a11y/alt-text
+          <Image src={logoSrc} style={styles.logo} />
+        )}
+        <View>
+          <Text style={styles.companyName}>{COMPANY_INFO.name}</Text>
+          <Text style={styles.small}>RUT {COMPANY_INFO.rut}</Text>
+          <Text style={styles.small}>{COMPANY_INFO.address}</Text>
+          <Text style={styles.small}>{COMPANY_INFO.email}</Text>
+        </View>
       </View>
       <View style={styles.docBox}>
         <Text style={styles.docType}>{docType}</Text>

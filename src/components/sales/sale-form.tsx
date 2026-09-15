@@ -21,7 +21,7 @@ import { ProductPicker, type PickedProduct } from "@/components/shared/product-p
 import { CustomerPicker, type CustomerValue } from "@/components/sales/customer-picker";
 import { primaryImage } from "@/lib/product-images";
 import { formatCLP } from "@/lib/format";
-import { createSale } from "@/server/actions/sales";
+import { createSale, updateSale } from "@/server/actions/sales";
 
 const IVA_RATE = 0.19;
 
@@ -34,26 +34,43 @@ type Line = {
   stock: number;
   quantity: number;
   unitPrice: number;
+  discountPercent: number;
   notes: string;
 };
 
 const PAYMENT_METHODS = ["Efectivo", "Débito", "Crédito", "Transferencia", "Otro"];
 
+export type SaleFormInitialData = {
+  id: string;
+  items: Line[];
+  customer: CustomerValue;
+  paymentMethod: string;
+  notes: string;
+};
+
 export function SaleForm({
   sellers,
   isAdmin,
   currentUserId,
+  initialSale,
 }: {
   sellers: { id: string; name: string }[];
   isAdmin: boolean;
   currentUserId: string;
+  /** When present, the form edits this sale instead of creating a new one. */
+  initialSale?: SaleFormInitialData;
 }) {
   const router = useRouter();
-  const [lines, setLines] = useState<Line[]>([]);
+  const isEdit = !!initialSale;
+  const [lines, setLines] = useState<Line[]>(initialSale?.items ?? []);
   const [requiresConfirmation, setRequiresConfirmation] = useState(true);
-  const [customer, setCustomer] = useState<CustomerValue>({ name: "", rut: "", businessName: "" });
-  const [paymentMethod, setPaymentMethod] = useState<string>("Efectivo");
-  const [notes, setNotes] = useState("");
+  const [customer, setCustomer] = useState<CustomerValue>(
+    initialSale?.customer ?? { name: "", rut: "", businessName: "" },
+  );
+  const [paymentMethod, setPaymentMethod] = useState<string>(
+    initialSale?.paymentMethod || "Efectivo",
+  );
+  const [notes, setNotes] = useState(initialSale?.notes ?? "");
   const [sellerId, setSellerId] = useState(currentUserId);
   const [submitting, setSubmitting] = useState(false);
   const [noteOpenFor, setNoteOpenFor] = useState<string | null>(null);
@@ -77,6 +94,7 @@ export function SaleForm({
           stock: p.stock,
           quantity: 1,
           unitPrice: 0,
+          discountPercent: 0,
           notes: "",
         },
       ];
@@ -106,9 +124,11 @@ export function SaleForm({
   const computed = useMemo(
     () =>
       lines.map((l) => {
-        const subtotal = l.quantity * l.unitPrice;
+        const gross = l.quantity * l.unitPrice;
+        const discountAmount = Math.round(gross * (l.discountPercent / 100));
+        const subtotal = gross - discountAmount;
         const taxAmount = Math.round(subtotal * IVA_RATE);
-        return { ...l, subtotal, taxAmount, total: subtotal + taxAmount };
+        return { ...l, discountAmount, subtotal, taxAmount, total: subtotal + taxAmount };
       }),
     [lines],
   );
@@ -117,9 +137,10 @@ export function SaleForm({
   const taxAmount = computed.reduce((s, l) => s + l.taxAmount, 0);
   const total = computed.reduce((s, l) => s + l.total, 0);
   const totalUnits = computed.reduce((s, l) => s + l.quantity, 0);
+  const totalDiscount = computed.reduce((s, l) => s + l.discountAmount, 0);
 
   const insufficientStock = lines.some(
-    (l) => !requiresConfirmation && l.quantity > l.stock,
+    (l) => !isEdit && !requiresConfirmation && l.quantity > l.stock,
   );
 
   const onSubmit = async () => {
@@ -138,11 +159,12 @@ export function SaleForm({
 
     setSubmitting(true);
     try {
-      const id = await createSale({
+      const payload = {
         items: lines.map((l) => ({
           productId: l.productId,
           quantity: l.quantity,
           unitPrice: l.unitPrice,
+          discountPercent: l.discountPercent,
           notes: l.notes || undefined,
         })),
         requiresConfirmation,
@@ -150,12 +172,24 @@ export function SaleForm({
         paymentMethod,
         notes,
         sellerId: isAdmin ? sellerId : undefined,
-      });
-      toast.success("Venta registrada");
-      router.push(`/ventas/${id}`);
+      };
+
+      if (isEdit) {
+        await updateSale(initialSale.id, payload);
+        toast.success("Venta actualizada");
+        router.push(`/ventas/${initialSale.id}`);
+      } else {
+        const id = await createSale(payload);
+        toast.success("Venta registrada");
+        router.push(`/ventas/${id}`);
+      }
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo registrar la venta");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : `No se pudo ${isEdit ? "actualizar" : "registrar"} la venta`,
+      );
     } finally {
       setSubmitting(false);
     }
@@ -210,7 +244,7 @@ export function SaleForm({
                       <p className="truncate text-xs text-muted-foreground">
                         {l.brand} {l.model}
                       </p>
-                      {!requiresConfirmation && l.quantity > l.stock && (
+                      {!isEdit && !requiresConfirmation && l.quantity > l.stock && (
                         <p className="mt-0.5 flex items-center gap-1 text-xs text-status-critical">
                           <AlertTriangle className="h-3 w-3" />
                           Solo hay {l.stock} en stock
@@ -237,7 +271,7 @@ export function SaleForm({
                     </Button>
                   </div>
 
-                  <div className="mt-2 grid grid-cols-2 gap-2 pl-16 sm:grid-cols-4">
+                  <div className="mt-2 grid grid-cols-2 gap-2 pl-16 sm:grid-cols-5">
                     <div>
                       <p className="mb-1 text-[10px] uppercase text-muted-foreground">Cantidad</p>
                       <Input
@@ -264,6 +298,22 @@ export function SaleForm({
                       />
                     </div>
                     <div>
+                      <p className="mb-1 text-[10px] uppercase text-muted-foreground">% Desc.</p>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={l.discountPercent}
+                        onChange={(e) =>
+                          updateLine(l.productId, {
+                            discountPercent: Math.min(100, Math.max(0, Number(e.target.value))),
+                          })
+                        }
+                        className="h-8 text-right"
+                      />
+                    </div>
+                    <div>
                       <p className="mb-1 text-[10px] uppercase text-muted-foreground">IVA (19%)</p>
                       <p className="flex h-8 items-center justify-end pr-2 text-sm tabular-nums text-muted-foreground">
                         {formatCLP(l.taxAmount)}
@@ -276,6 +326,11 @@ export function SaleForm({
                       </p>
                     </div>
                   </div>
+                  {l.discountAmount > 0 && (
+                    <p className="mt-1 pl-16 text-xs text-status-good">
+                      Descuento aplicado: -{formatCLP(l.discountAmount)}
+                    </p>
+                  )}
 
                   {noteOpenFor === l.productId && (
                     <div className="mt-2 pl-16">
@@ -298,6 +353,12 @@ export function SaleForm({
                 <span>{totalUnits} lente(s)</span>
                 <span>Subtotal {formatCLP(subtotal)}</span>
               </div>
+              {totalDiscount > 0 && (
+                <div className="flex items-center justify-between text-xs text-status-good">
+                  <span>Descuentos</span>
+                  <span>-{formatCLP(totalDiscount)}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>IVA (19%)</span>
                 <span>{formatCLP(taxAmount)}</span>
@@ -312,28 +373,38 @@ export function SaleForm({
       </div>
 
       <div className="space-y-4">
-        <div className="space-y-3 rounded-xl border bg-card p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium">
-                {requiresConfirmation
-                  ? "Requiere confirmación"
-                  : "Descuenta inventario ahora"}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {requiresConfirmation
-                  ? "La venta queda registrada de inmediato, pero el stock solo se descuenta cuando un preparador confirme el pedido."
-                  : "El stock se descuenta apenas registres esta venta."}
-              </p>
+        {!isEdit && (
+          <div className="space-y-3 rounded-xl border bg-card p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">
+                  {requiresConfirmation
+                    ? "Requiere confirmación"
+                    : "Descuenta inventario ahora"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {requiresConfirmation
+                    ? "La venta queda registrada de inmediato, pero el stock solo se descuenta cuando un preparador confirme el pedido."
+                    : "El stock se descuenta apenas registres esta venta."}
+                </p>
+              </div>
+              <Switch
+                checked={requiresConfirmation}
+                onCheckedChange={setRequiresConfirmation}
+              />
             </div>
-            <Switch
-              checked={requiresConfirmation}
-              onCheckedChange={setRequiresConfirmation}
-            />
           </div>
-        </div>
+        )}
 
-        {isAdmin && (
+        {isEdit && (
+          <div className="rounded-xl border border-dashed bg-muted/30 p-4 text-xs text-muted-foreground">
+            Editar corrige los productos, precios y datos de la venta. El estado de
+            confirmación no cambia aquí — usa los botones de la venta para eso. Si el
+            inventario ya se había descontado, se ajusta automáticamente al guardar.
+          </div>
+        )}
+
+        {isAdmin && !isEdit && (
           <div className="space-y-2 rounded-xl border bg-card p-4">
             <Label>Vendedor</Label>
             <Select
@@ -393,7 +464,8 @@ export function SaleForm({
 
         <Button className="w-full" size="lg" onClick={onSubmit} disabled={submitting}>
           {submitting && <Loader2 className="animate-spin" />}
-          Registrar venta {computed.length > 0 && `· ${formatCLP(total)}`}
+          {isEdit ? "Guardar cambios" : "Registrar venta"}{" "}
+          {computed.length > 0 && `· ${formatCLP(total)}`}
         </Button>
       </div>
     </div>

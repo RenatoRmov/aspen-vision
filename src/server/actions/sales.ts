@@ -15,6 +15,7 @@ const saleItemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().int().min(1),
   unitPrice: z.coerce.number().int().min(0),
+  discountPercent: z.coerce.number().min(0).max(100).default(0),
   notes: z.string().trim().optional(),
 });
 
@@ -35,10 +36,12 @@ const saleSchema = z.object({
 
 export type SaleFormValues = z.infer<typeof saleSchema>;
 
-function lineAmounts(quantity: number, unitPrice: number) {
-  const subtotal = quantity * unitPrice;
+function lineAmounts(quantity: number, unitPrice: number, discountPercent: number) {
+  const gross = quantity * unitPrice;
+  const discountAmount = Math.round(gross * (discountPercent / 100));
+  const subtotal = gross - discountAmount;
   const taxAmount = Math.round(subtotal * IVA_RATE);
-  return { subtotal, taxAmount, total: subtotal + taxAmount };
+  return { discountAmount, subtotal, taxAmount, total: subtotal + taxAmount };
 }
 
 async function findOrCreateCustomer(
@@ -92,12 +95,13 @@ export async function createSale(input: SaleFormValues) {
         notes: data.notes || null,
         items: {
           create: data.items.map((i, idx) => {
-            const amounts = lineAmounts(i.quantity, i.unitPrice);
+            const amounts = lineAmounts(i.quantity, i.unitPrice, i.discountPercent);
             return {
               position: idx,
               productId: i.productId,
               quantity: i.quantity,
               unitPrice: i.unitPrice,
+              discountPercent: i.discountPercent,
               notes: i.notes || null,
               ...amounts,
             };
@@ -136,6 +140,94 @@ export async function createSale(input: SaleFormValues) {
   revalidatePath("/ventas");
   revalidatePath("/");
   return saleId;
+}
+
+/**
+ * Corrects an already-registered sale: products, quantities, prices,
+ * discounts, buyer, payment method, notes. Does NOT touch confirmation
+ * status — use confirmSale/cancelSale for that.
+ *
+ * If inventory was already applied (sale is CONFIRMADA), the old line
+ * quantities are reversed and the new ones re-applied in the same
+ * transaction, so a product swap or quantity change lands as a single net
+ * inventory correction rather than silently drifting from what's on the
+ * shelf. If the sale is still PENDIENTE_CONFIRMACION, no inventory has
+ * moved yet, so editing is just a data update.
+ */
+export async function updateSale(saleId: string, input: SaleFormValues) {
+  const session = await auth();
+  if (!session?.user) throw new Error("No autorizado");
+  if (!can(session.user.role, "sales:edit")) {
+    throw new Error("No tienes permisos para editar ventas");
+  }
+
+  const data = saleSchema.parse(input);
+
+  await db.$transaction(async (tx) => {
+    const sale = await tx.sale.findUniqueOrThrow({
+      where: { id: saleId },
+      include: { items: true },
+    });
+    if (sale.cancelledAt) throw new Error("No se puede editar una venta cancelada.");
+
+    const customer = data.customer ? await findOrCreateCustomer(tx, data.customer) : null;
+
+    if (sale.inventoryApplied) {
+      for (const item of sale.items) {
+        await recordInventoryMovement(tx, {
+          productId: item.productId,
+          type: "AJUSTE",
+          quantity: item.quantity,
+          reason: `Reverso por edición de ${sale.code}`,
+          reference: `Edición ${sale.code}`,
+          saleId: sale.id,
+          userId: session.user.id,
+        });
+      }
+    }
+
+    await tx.saleItem.deleteMany({ where: { saleId } });
+
+    await tx.sale.update({
+      where: { id: saleId },
+      data: {
+        customerId: customer?.id ?? null,
+        paymentMethod: data.paymentMethod || null,
+        notes: data.notes || null,
+        items: {
+          create: data.items.map((i, idx) => {
+            const amounts = lineAmounts(i.quantity, i.unitPrice, i.discountPercent);
+            return {
+              position: idx,
+              productId: i.productId,
+              quantity: i.quantity,
+              unitPrice: i.unitPrice,
+              discountPercent: i.discountPercent,
+              notes: i.notes || null,
+              ...amounts,
+            };
+          }),
+        },
+      },
+    });
+
+    if (sale.inventoryApplied) {
+      for (const item of data.items) {
+        await recordInventoryMovement(tx, {
+          productId: item.productId,
+          type: "VENTA",
+          quantity: -item.quantity,
+          reference: `Venta ${sale.code} (editada)`,
+          saleId: sale.id,
+          userId: session.user.id,
+        });
+      }
+    }
+  });
+
+  revalidatePath("/ventas");
+  revalidatePath(`/ventas/${saleId}`);
+  revalidatePath("/");
 }
 
 export async function confirmSale(saleId: string) {

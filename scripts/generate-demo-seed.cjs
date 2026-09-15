@@ -1,6 +1,6 @@
 // Regenerates src/lib/demo-seed-data.ts from the current local dev.db.
 // Run after reseeding locally, whenever the Vercel demo dataset should be
-// refreshed: node scripts/generate-demo-seed.js
+// refreshed: node scripts/generate-demo-seed.cjs
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -12,7 +12,7 @@ const base64 = buffer.toString("base64");
 
 const contents = [
   "// Auto-generated snapshot of the seeded demo SQLite database, base64-encoded.",
-  "// Regenerate: node scripts/generate-demo-seed.js (see that file for the one-liner it runs).",
+  "// Regenerate: node scripts/generate-demo-seed.cjs (see that file for the one-liner it runs).",
   `export const DEMO_SEED_DB_BASE64 = ${JSON.stringify(base64)};`,
   "",
 ].join("\n");

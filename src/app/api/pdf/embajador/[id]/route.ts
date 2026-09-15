@@ -4,6 +4,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { MovementReceiptDocument } from "@/lib/pdf/receipt-document";
+import { getCompanyLogoSrc } from "@/lib/pdf/company-logo";
 
 export async function GET(
   _request: Request,
@@ -41,6 +42,7 @@ export async function GET(
       description: `${item.product.name} — ${item.product.brand} ${item.product.model}`,
       quantity: item.quantity,
     })),
+    logoSrc: await getCompanyLogoSrc(),
   });
 
   const buffer = await renderToBuffer(element as Parameters<typeof renderToBuffer>[0]);

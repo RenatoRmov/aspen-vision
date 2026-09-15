@@ -180,18 +180,20 @@ model Customer {
 }
 
 model SaleItem {
-  id        String  @id @default(cuid())
-  saleId    String
-  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  position  Int     @default(0) // display order within the sale, user-sortable
-  productId String
-  product   Product @relation(fields: [productId], references: [id])
-  quantity  Int
-  unitPrice Int // precio unitario neto (sin IVA)
-  taxAmount Int     @default(0) // IVA de la línea (19% del subtotal neto)
-  subtotal  Int // neto: quantity * unitPrice
-  total     Int     @default(0) // subtotal + taxAmount
-  notes     String?
+  id              String  @id @default(cuid())
+  saleId          String
+  sale            Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  position        Int     @default(0) // display order within the sale, user-sortable
+  productId       String
+  product         Product @relation(fields: [productId], references: [id])
+  quantity        Int
+  unitPrice       Int // precio unitario de lista (sin IVA, sin descuento)
+  discountPercent Float   @default(0) // % de descuento sobre la línea (0-100)
+  discountAmount  Int     @default(0) // monto descontado, en CLP: quantity*unitPrice*discountPercent/100
+  taxAmount       Int     @default(0) // IVA de la línea (19% del subtotal neto, ya con descuento aplicado)
+  subtotal        Int // neto tras descuento: quantity*unitPrice - discountAmount
+  total           Int     @default(0) // subtotal + taxAmount
+  notes           String?
 
   @@index([saleId])
   @@index([productId])

@@ -11,6 +11,7 @@ const CAPABILITIES = {
   "sales:view-all": ["ADMIN", "PREPARADOR"], // vendedor only sees their own sales
   "sales:confirm": ["ADMIN", "PREPARADOR"],
   "sales:cancel": ["ADMIN"],
+  "sales:edit": ["ADMIN"], // correcting an already-registered sale (items, prices, discounts)
   "ambassadors:manage": ["ADMIN", "PREPARADOR"],
   "warranties:manage": ["ADMIN", "PREPARADOR"],
   "users:manage": ["ADMIN"],

@@ -45,6 +45,8 @@ export async function GET(
           "Código de barras": i.product.barcode,
           Cantidad: i.quantity,
           "Precio unitario": i.unitPrice,
+          "% Descuento": i.discountPercent,
+          "Monto descuento": i.discountAmount,
           IVA: i.taxAmount,
           Total: i.total,
           Estado: s.status === "CONFIRMADA" ? "Confirmada" : "Pendiente de confirmación",

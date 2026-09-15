@@ -4,6 +4,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { VentaReceiptDocument } from "@/lib/pdf/receipt-document";
+import { getCompanyLogoSrc } from "@/lib/pdf/company-logo";
 import { formatRut } from "@/lib/rut";
 
 export async function GET(
@@ -29,8 +30,10 @@ export async function GET(
   }
 
   const subtotal = sale.items.reduce((a, i) => a + i.subtotal, 0);
+  const discountTotal = sale.items.reduce((a, i) => a + i.discountAmount, 0);
   const taxAmount = sale.items.reduce((a, i) => a + i.taxAmount, 0);
   const total = sale.items.reduce((a, i) => a + i.total, 0);
+  const logoSrc = await getCompanyLogoSrc();
 
   const element = createElement(VentaReceiptDocument, {
     code: sale.code,
@@ -46,13 +49,17 @@ export async function GET(
       description: `${item.product.name} — ${item.product.brand} ${item.product.model}`,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
+      discountPercent: item.discountPercent,
+      discountAmount: item.discountAmount,
       taxAmount: item.taxAmount,
       total: item.total,
       notes: item.notes,
     })),
     subtotal,
+    discountTotal,
     taxAmount,
     total,
+    logoSrc,
   });
 
   const buffer = await renderToBuffer(element as Parameters<typeof renderToBuffer>[0]);

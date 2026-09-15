@@ -1,5 +1,7 @@
 import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Pencil } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getSaleById } from "@/server/queries/sales";
@@ -7,6 +9,7 @@ import { formatCLP, formatDateTime } from "@/lib/format";
 import { primaryImage } from "@/lib/product-images";
 import { formatRut } from "@/lib/rut";
 import { PageHeader } from "@/components/shared/page-header";
+import { Button } from "@/components/ui/button";
 import { SaleStatusBadge } from "@/components/sales/sale-status-badge";
 import { ConfirmSaleButton, CancelSaleButton } from "@/components/sales/sale-actions";
 import { PrintPdfButton } from "@/components/shared/print-pdf-button";
@@ -34,10 +37,13 @@ export default async function SaleDetailPage({
     sale.status === "PENDIENTE_CONFIRMACION" &&
     !sale.cancelledAt;
   const canCancel = can(session.user.role, "sales:cancel") && !sale.cancelledAt;
+  const canEdit = can(session.user.role, "sales:edit") && !sale.cancelledAt;
 
+  const hasDiscount = sale.items.some((i) => i.discountAmount > 0);
   const subtotal = sale.items.reduce((a, i) => a + i.subtotal, 0);
   const taxAmount = sale.items.reduce((a, i) => a + i.taxAmount, 0);
   const total = sale.items.reduce((a, i) => a + i.total, 0);
+  const totalDiscount = sale.items.reduce((a, i) => a + i.discountAmount, 0);
 
   return (
     <div className="space-y-6">
@@ -47,6 +53,16 @@ export default async function SaleDetailPage({
         actions={
           <div className="flex gap-2">
             <PrintPdfButton href={`/api/pdf/venta/${sale.id}`} />
+            {canEdit && (
+              <Button
+                variant="outline"
+                render={<Link href={`/ventas/${sale.id}/editar`} />}
+                nativeButton={false}
+              >
+                <Pencil className="h-4 w-4" />
+                Editar
+              </Button>
+            )}
             {canConfirm && <ConfirmSaleButton saleId={sale.id} />}
             {canCancel && <CancelSaleButton saleId={sale.id} />}
           </div>
@@ -81,6 +97,7 @@ export default async function SaleDetailPage({
                   <TableHead>Producto</TableHead>
                   <TableHead className="text-right">Cantidad</TableHead>
                   <TableHead className="text-right">P. unitario</TableHead>
+                  {hasDiscount && <TableHead className="text-right">Desc.</TableHead>}
                   <TableHead className="text-right">IVA</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                 </TableRow>
@@ -111,6 +128,13 @@ export default async function SaleDetailPage({
                       <TableCell className="text-right tabular-nums">
                         {formatCLP(item.unitPrice)}
                       </TableCell>
+                      {hasDiscount && (
+                        <TableCell className="text-right tabular-nums text-status-good">
+                          {item.discountAmount > 0
+                            ? `-${item.discountPercent % 1 === 0 ? item.discountPercent : item.discountPercent.toFixed(1)}%`
+                            : "—"}
+                        </TableCell>
+                      )}
                       <TableCell className="text-right tabular-nums text-muted-foreground">
                         {formatCLP(item.taxAmount)}
                       </TableCell>
@@ -127,6 +151,12 @@ export default async function SaleDetailPage({
                 <span>Subtotal</span>
                 <span>{formatCLP(subtotal)}</span>
               </div>
+              {totalDiscount > 0 && (
+                <div className="flex items-center justify-between text-sm text-status-good">
+                  <span>Descuentos</span>
+                  <span>-{formatCLP(totalDiscount)}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span>IVA (19%)</span>
                 <span>{formatCLP(taxAmount)}</span>
