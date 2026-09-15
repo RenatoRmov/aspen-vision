@@ -1,0 +1,286 @@
+// Prisma schema for Aspen Vision — internal management system
+// Design notes (assumptions, revisit if wrong):
+// - SQLite for zero-config local/small-team deployment. Swap `provider` to
+//   "postgresql" in prisma.config.ts + here when moving to a shared server;
+//   models are written to be portable (no SQLite-only features used).
+// - `Product.stock` is a cached counter, not the source of truth. The source
+//   of truth is the append-only `InventoryMovement` ledger. Every write that
+//   changes stock creates a movement row and updates the cached counter in
+//   the same DB transaction, so the two can never drift.
+// - Money is stored in integer CLP (Chilean pesos, no decimals) to avoid
+//   floating point rounding issues. Adjust if the business uses a currency
+//   with subunits.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum Role {
+  ADMIN // Full access: catalog, users, all reports, inventory adjustments
+  VENDEDOR // Can register sales, view inventory (read-only), view own sales
+  PREPARADOR // Confirms pending sales (inventory prep/fulfillment), manages inventory entries
+}
+
+enum MovementType {
+  ENTRADA // Stock received into inventory (purchase/restock)
+  VENTA // Stock leaving because of a confirmed sale
+  EMBAJADOR // Stock leaving as a gifted delivery to an ambassador
+  GARANTIA // Stock leaving to resolve a warranty claim
+  AJUSTE // Manual correction (loss, damage, recount, etc.)
+}
+
+enum SaleFulfillmentStatus {
+  PENDIENTE_CONFIRMACION // Sale happened commercially, stock NOT yet discounted
+  CONFIRMADA // Preparador confirmed; stock has been discounted
+}
+
+enum WarrantyStatus {
+  PENDIENTE
+  RESUELTA
+  RECHAZADA
+}
+
+enum NotificationType {
+  VENTA_PENDIENTE
+  STOCK_BAJO
+  STOCK_AGOTADO
+  GENERAL
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(VENDEDOR)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sales                Sale[]               @relation("SaleSeller")
+  confirmedSales       Sale[]               @relation("SaleConfirmedBy")
+  inventoryMovements   InventoryMovement[]  @relation("MovementUser")
+  ambassadorDeliveries AmbassadorDelivery[] @relation("DeliveryUser")
+  warranties           Warranty[]           @relation("WarrantyResponsible")
+  notifications        Notification[]
+
+  @@index([role])
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  slug      String    @unique
+  createdAt DateTime  @default(now())
+  products  Product[]
+}
+
+model Product {
+  id         String   @id @default(cuid())
+  name       String // Nombre comercial del producto, independiente de marca/modelo
+  barcode    String   @unique
+  brand      String
+  model      String
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+  shape      String? // Forma (e.g. Cuadrado, Redondo, Aviador)
+  color      String?
+  material   String?
+  notes      String?
+  images     Json     @default("[]") // ordered array of image URLs; images[0] is the cover photo
+  stock      Int      @default(0) // cached — derived from InventoryMovement ledger
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  movements       InventoryMovement[]
+  saleItems       SaleItem[]
+  ambassadorItems AmbassadorDeliveryItem[]
+  warranties      Warranty[]
+
+  @@index([categoryId])
+  @@index([brand])
+  @@index([active])
+}
+
+// Append-only ledger. Never update or delete rows — corrections are new
+// AJUSTE rows. `quantity` is signed: positive = stock in, negative = stock out.
+model InventoryMovement {
+  id                   String              @id @default(cuid())
+  productId            String
+  product              Product             @relation(fields: [productId], references: [id])
+  type                 MovementType
+  quantity             Int
+  reason               String?
+  // Free-form human-readable reference shown in the ledger UI, e.g. "Venta #A-102"
+  reference            String?
+  // Polymorphic link back to the originating record, for click-through navigation
+  saleId               String?
+  sale                 Sale?               @relation(fields: [saleId], references: [id])
+  ambassadorDeliveryId String?
+  ambassadorDelivery   AmbassadorDelivery? @relation(fields: [ambassadorDeliveryId], references: [id])
+  warrantyId           String?
+  warranty             Warranty?           @relation(fields: [warrantyId], references: [id])
+  userId               String
+  user                 User                @relation("MovementUser", fields: [userId], references: [id])
+  createdAt            DateTime            @default(now())
+
+  @@index([productId, createdAt])
+  @@index([type])
+}
+
+model Sale {
+  id                   String                @id @default(cuid())
+  code                 String                @unique // human-friendly, e.g. V-000123
+  date                 DateTime              @default(now())
+  sellerId             String
+  seller               User                  @relation("SaleSeller", fields: [sellerId], references: [id])
+  requiresConfirmation Boolean               @default(true)
+  status               SaleFulfillmentStatus @default(CONFIRMADA)
+  inventoryApplied     Boolean               @default(false) // guard against double-discount
+  confirmedById        String?
+  confirmedBy          User?                 @relation("SaleConfirmedBy", fields: [confirmedById], references: [id])
+  confirmedAt          DateTime?
+  customerId           String?
+  customer             Customer?             @relation(fields: [customerId], references: [id])
+  paymentMethod        String?
+  notes                String?
+  cancelledAt          DateTime?
+  cancelReason         String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  items         SaleItem[]
+  movements     InventoryMovement[]
+  notifications Notification[]
+
+  @@index([status])
+  @@index([sellerId])
+  @@index([date])
+  @@index([customerId])
+}
+
+// A buyer (persona o empresa) a quien se le emite la venta. Se identifica por
+// RUT para poder autocompletar razón social en ventas futuras al mismo cliente.
+model Customer {
+  id           String   @id @default(cuid())
+  name         String
+  rut          String   @unique
+  businessName String? // Razón social, para clientes con facturación a empresa
+  address      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sales Sale[]
+}
+
+model SaleItem {
+  id        String  @id @default(cuid())
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  position  Int     @default(0) // display order within the sale, user-sortable
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  unitPrice Int // precio unitario neto (sin IVA)
+  taxAmount Int     @default(0) // IVA de la línea (19% del subtotal neto)
+  subtotal  Int // neto: quantity * unitPrice
+  total     Int     @default(0) // subtotal + taxAmount
+  notes     String?
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model Ambassador {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  instagram String?
+  tiktok    String?
+  notes     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  deliveries AmbassadorDelivery[]
+}
+
+model AmbassadorDelivery {
+  id            String     @id @default(cuid())
+  code          String     @unique // e.g. E-000045
+  ambassadorId  String
+  ambassador    Ambassador @relation(fields: [ambassadorId], references: [id])
+  date          DateTime   @default(now())
+  notes         String?
+  deliveredById String
+  deliveredBy   User       @relation("DeliveryUser", fields: [deliveredById], references: [id])
+  createdAt     DateTime   @default(now())
+
+  items     AmbassadorDeliveryItem[]
+  movements InventoryMovement[]
+
+  @@index([ambassadorId])
+  @@index([date])
+}
+
+model AmbassadorDeliveryItem {
+  id         String             @id @default(cuid())
+  deliveryId String
+  delivery   AmbassadorDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product            @relation(fields: [productId], references: [id])
+  quantity   Int
+
+  @@index([deliveryId])
+  @@index([productId])
+}
+
+model Warranty {
+  id               String         @id @default(cuid())
+  code             String         @unique // e.g. G-000012
+  date             DateTime       @default(now())
+  customerName     String
+  customerContact  String?
+  productId        String
+  product          Product        @relation(fields: [productId], references: [id])
+  quantity         Int            @default(1)
+  reason           String
+  notes            String?
+  status           WarrantyStatus @default(PENDIENTE)
+  inventoryApplied Boolean        @default(false)
+  responsibleId    String?
+  responsible      User?          @relation("WarrantyResponsible", fields: [responsibleId], references: [id])
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  movements InventoryMovement[]
+
+  @@index([status])
+  @@index([date])
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  type       NotificationType
+  title      String
+  message    String
+  link       String?
+  // null userId = broadcast to every ADMIN/PREPARADOR (role-targeted, see targetRole)
+  userId     String?
+  user       User?            @relation(fields: [userId], references: [id])
+  targetRole Role?
+  saleId     String?
+  sale       Sale?            @relation(fields: [saleId], references: [id])
+  read       Boolean          @default(false)
+  createdAt  DateTime         @default(now())
+
+  @@index([userId, read])
+  @@index([targetRole, read])
+}
