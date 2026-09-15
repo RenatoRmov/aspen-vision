@@ -16,8 +16,8 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottom: "1.5pt solid #111111",
   },
-  headerLeft: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  logo: { width: 36, height: 36, objectFit: "contain" },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  logo: { width: 84, height: 32, objectFit: "contain" },
   brandMark: { flexDirection: "row", alignItems: "center", gap: 5 },
   brandWordmark: { alignItems: "center" },
   brandName: {
