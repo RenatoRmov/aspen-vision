@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { toast } from "sonner";
 import { Loader2, Trash2, AlertTriangle, ChevronUp, ChevronDown, StickyNote } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +16,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { ProductPicker, type PickedProduct } from "@/components/shared/product-picker";
 import { CustomerPicker, type CustomerValue } from "@/components/sales/customer-picker";
 import { primaryImage } from "@/lib/product-images";
@@ -209,143 +216,150 @@ export function SaleForm({
               Aún no has agregado productos a esta venta.
             </p>
           ) : (
-            <ul className="divide-y">
-              {computed.map((l, index) => (
-                <li key={l.productId} className="p-3">
-                  <div className="flex items-center gap-2">
-                    <span className="w-5 shrink-0 text-center text-xs font-medium text-muted-foreground">
-                      {index + 1}
-                    </span>
-                    <div className="flex shrink-0 flex-col">
-                      <button
-                        type="button"
-                        disabled={index === 0}
-                        onClick={() => moveLine(index, -1)}
-                        className="text-muted-foreground hover:text-foreground disabled:opacity-20"
-                      >
-                        <ChevronUp className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={index === computed.length - 1}
-                        onClick={() => moveLine(index, 1)}
-                        className="text-muted-foreground hover:text-foreground disabled:opacity-20"
-                      >
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted">
-                      {l.imageUrl && (
-                        <Image src={l.imageUrl} alt="" fill className="object-cover" sizes="48px" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{l.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {l.brand} {l.model}
-                      </p>
-                      {!isEdit && !requiresConfirmation && l.quantity > l.stock && (
-                        <p className="mt-0.5 flex items-center gap-1 text-xs text-status-critical">
-                          <AlertTriangle className="h-3 w-3" />
-                          Solo hay {l.stock} en stock
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-6" />
+                  <TableHead className="w-6 text-xs">#</TableHead>
+                  <TableHead className="text-xs">Producto</TableHead>
+                  <TableHead className="w-20 text-right text-xs">Cant.</TableHead>
+                  <TableHead className="w-28 text-right text-xs">P. unitario</TableHead>
+                  <TableHead className="w-20 text-right text-xs">% Desc.</TableHead>
+                  <TableHead className="w-24 text-right text-xs">IVA</TableHead>
+                  <TableHead className="w-28 text-right text-xs">Importe</TableHead>
+                  <TableHead className="w-16" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {computed.map((l, index) => (
+                  <Fragment key={l.productId}>
+                    <TableRow className="[&>td]:py-1.5">
+                      <TableCell className="p-0 pl-2">
+                        <div className="flex flex-col">
+                          <button
+                            type="button"
+                            disabled={index === 0}
+                            onClick={() => moveLine(index, -1)}
+                            className="text-muted-foreground hover:text-foreground disabled:opacity-20"
+                          >
+                            <ChevronUp className="h-3 w-3" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={index === computed.length - 1}
+                            onClick={() => moveLine(index, 1)}
+                            className="text-muted-foreground hover:text-foreground disabled:opacity-20"
+                          >
+                            <ChevronDown className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{index + 1}</TableCell>
+                      <TableCell className="whitespace-normal">
+                        <p className="text-sm leading-tight font-medium">{l.name}</p>
+                        <p className="text-xs leading-tight text-muted-foreground">
+                          {l.brand} {l.model}
                         </p>
-                      )}
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className={l.notes ? "text-primary" : "text-muted-foreground"}
-                      onClick={() => setNoteOpenFor(noteOpenFor === l.productId ? null : l.productId)}
-                      title="Nota del producto"
-                    >
-                      <StickyNote className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => removeLine(l.productId)}
-                    >
-                      <Trash2 className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  </div>
-
-                  <div className="mt-2 grid grid-cols-2 gap-2 pl-16 sm:grid-cols-5">
-                    <div>
-                      <p className="mb-1 text-[10px] uppercase text-muted-foreground">Cantidad</p>
-                      <Input
-                        type="number"
-                        min={1}
-                        value={l.quantity}
-                        onChange={(e) =>
-                          updateLine(l.productId, { quantity: Math.max(1, Number(e.target.value)) })
-                        }
-                        className="h-8 text-center"
-                      />
-                    </div>
-                    <div>
-                      <p className="mb-1 text-[10px] uppercase text-muted-foreground">P. unitario</p>
-                      <Input
-                        type="number"
-                        min={0}
-                        step={100}
-                        value={l.unitPrice}
-                        onChange={(e) =>
-                          updateLine(l.productId, { unitPrice: Math.max(0, Number(e.target.value)) })
-                        }
-                        className="h-8 text-right"
-                      />
-                    </div>
-                    <div>
-                      <p className="mb-1 text-[10px] uppercase text-muted-foreground">% Desc.</p>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={1}
-                        value={l.discountPercent}
-                        onChange={(e) =>
-                          updateLine(l.productId, {
-                            discountPercent: Math.min(100, Math.max(0, Number(e.target.value))),
-                          })
-                        }
-                        className="h-8 text-right"
-                      />
-                    </div>
-                    <div>
-                      <p className="mb-1 text-[10px] uppercase text-muted-foreground">IVA (19%)</p>
-                      <p className="flex h-8 items-center justify-end pr-2 text-sm tabular-nums text-muted-foreground">
+                        {!isEdit && !requiresConfirmation && l.quantity > l.stock && (
+                          <p className="mt-0.5 flex items-center gap-1 text-xs text-status-critical">
+                            <AlertTriangle className="h-3 w-3" />
+                            Solo hay {l.stock} en stock
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={l.quantity}
+                          onChange={(e) =>
+                            updateLine(l.productId, { quantity: Math.max(1, Number(e.target.value)) })
+                          }
+                          className="h-8 text-right"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={100}
+                          value={l.unitPrice}
+                          onChange={(e) =>
+                            updateLine(l.productId, { unitPrice: Math.max(0, Number(e.target.value)) })
+                          }
+                          className="h-8 text-right"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={l.discountPercent}
+                          onChange={(e) =>
+                            updateLine(l.productId, {
+                              discountPercent: Math.min(100, Math.max(0, Number(e.target.value))),
+                            })
+                          }
+                          className="h-8 text-right"
+                        />
+                      </TableCell>
+                      <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
                         {formatCLP(l.taxAmount)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="mb-1 text-[10px] uppercase text-muted-foreground">Total</p>
-                      <p className="flex h-8 items-center justify-end pr-2 text-sm font-medium tabular-nums">
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-medium tabular-nums">
                         {formatCLP(l.total)}
-                      </p>
-                    </div>
-                  </div>
-                  {l.discountAmount > 0 && (
-                    <p className="mt-1 pl-16 text-xs text-status-good">
-                      Descuento aplicado: -{formatCLP(l.discountAmount)}
-                    </p>
-                  )}
-
-                  {noteOpenFor === l.productId && (
-                    <div className="mt-2 pl-16">
-                      <Textarea
-                        rows={2}
-                        placeholder="Nota para este producto (ej. graduación, observación del cliente)"
-                        value={l.notes}
-                        onChange={(e) => updateLine(l.productId, { notes: e.target.value })}
-                        className="text-sm"
-                      />
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-0.5">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className={l.notes ? "text-primary" : "text-muted-foreground"}
+                            onClick={() =>
+                              setNoteOpenFor(noteOpenFor === l.productId ? null : l.productId)
+                            }
+                            title="Nota del producto"
+                          >
+                            <StickyNote className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => removeLine(l.productId)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {l.discountAmount > 0 && (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={9} className="py-0.5 pt-0 text-right text-xs text-status-good">
+                          Descuento aplicado: -{formatCLP(l.discountAmount)}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {noteOpenFor === l.productId && (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={9} className="bg-muted/30 py-2">
+                          <Textarea
+                            rows={2}
+                            placeholder="Nota para este producto (ej. graduación, observación del cliente)"
+                            value={l.notes}
+                            onChange={(e) => updateLine(l.productId, { notes: e.target.value })}
+                            className="bg-background text-sm"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                ))}
+              </TableBody>
+            </Table>
           )}
           {computed.length > 0 && (
             <div className="space-y-1 border-t bg-muted/40 px-4 py-3">
