@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Image, Svg, Polygon } from "@react-pdf/renderer";
 import { formatCLP, formatDateTime } from "@/lib/format";
 import { COMPANY_INFO } from "@/lib/company-info";
 
@@ -18,6 +18,25 @@ const styles = StyleSheet.create({
   },
   headerLeft: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   logo: { width: 36, height: 36, objectFit: "contain" },
+  brandMark: { flexDirection: "row", alignItems: "center", gap: 5 },
+  brandWordmark: { alignItems: "center" },
+  brandName: {
+    fontSize: 15,
+    fontFamily: "Helvetica-Bold",
+    letterSpacing: 0.5,
+  },
+  brandRule: {
+    height: 1,
+    backgroundColor: "#111111",
+    marginTop: 2,
+    marginBottom: 2,
+    alignSelf: "stretch",
+  },
+  brandSub: {
+    fontSize: 6,
+    fontFamily: "Times-Roman",
+    letterSpacing: 3,
+  },
   companyName: { fontSize: 13, fontFamily: "Helvetica-Bold" },
   small: { fontSize: 8, color: "#444444", marginTop: 1 },
   docBox: { alignItems: "flex-end" },
@@ -331,6 +350,21 @@ export function MovementReceiptDocument({
   );
 }
 
+function BrandMark() {
+  return (
+    <View style={styles.brandMark}>
+      <Svg width={22} height={22} viewBox="0 0 100 100">
+        <Polygon points="50,8 92,88 8,88" fill="none" stroke="#111111" strokeWidth={9} />
+      </Svg>
+      <View style={styles.brandWordmark}>
+        <Text style={styles.brandName}>ASPEN</Text>
+        <View style={styles.brandRule} />
+        <Text style={styles.brandSub}>EYEWEAR</Text>
+      </View>
+    </View>
+  );
+}
+
 function Header({
   docType,
   code,
@@ -345,9 +379,11 @@ function Header({
   return (
     <View style={styles.headerRow}>
       <View style={styles.headerLeft}>
-        {logoSrc && (
+        {logoSrc ? (
           // eslint-disable-next-line jsx-a11y/alt-text
           <Image src={logoSrc} style={styles.logo} />
+        ) : (
+          <BrandMark />
         )}
         <View>
           <Text style={styles.companyName}>{COMPANY_INFO.name}</Text>
