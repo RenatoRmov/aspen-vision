@@ -9,7 +9,11 @@ export default defineConfig({
     path: "prisma/migrations",
     seed: "tsx prisma/seed.ts",
   },
+  // The CLI (db push / migrate) needs a direct, session-scoped connection —
+  // Supabase's transaction-mode pooler (DATABASE_URL, used by the app at
+  // runtime via src/lib/db.ts) doesn't support the session state Migrate
+  // relies on and just hangs. DIRECT_URL is the non-pooled connection.
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: process.env["DIRECT_URL"],
   },
 });

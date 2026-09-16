@@ -1,8 +1,10 @@
 // Prisma schema for Aspen Vision — internal management system
 // Design notes (assumptions, revisit if wrong):
-// - SQLite for zero-config local/small-team deployment. Swap `provider` to
-//   "postgresql" in prisma.config.ts + here when moving to a shared server;
-//   models are written to be portable (no SQLite-only features used).
+// - Postgres (hosted on Supabase), reached through Supavisor's transaction
+//   pooler (DATABASE_URL) for app queries and a direct connection
+//   (DIRECT_URL) for migrations — the standard pairing for a serverless
+//   Vercel deployment, since migrations need a session-scoped connection the
+//   pooler doesn't provide.
 // - `Product.stock` is a cached counter, not the source of truth. The source
 //   of truth is the append-only `InventoryMovement` ledger. Every write that
 //   changes stock creates a movement row and updates the cached counter in
@@ -17,7 +19,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 enum Role {
