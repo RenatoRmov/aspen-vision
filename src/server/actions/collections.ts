@@ -17,7 +17,10 @@ async function requireCollectionsAccess() {
 }
 
 const collectionSchema = z.object({
-  city: z.string().trim().min(1, "La ciudad es obligatoria"),
+  // Ciudad is genuinely blank on some rows in real SII exports, so it can't
+  // be required like the other columns — the UI already renders it as "—"
+  // when empty.
+  city: z.string().trim().optional().default(""),
   clientRut: z.string().trim().min(1, "El RUT es obligatorio"),
   businessName: z.string().trim().min(1, "La razón social es obligatoria"),
   folio: z.string().trim().min(1, "El folio es obligatorio"),
