@@ -46,11 +46,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // session.user.id (audit trails like CollectionPayment.createdById)
       // would otherwise fail with a confusing foreign-key error.
       if (!token.id) return token;
-      const stillValid = await db.user.findUnique({
-        where: { id: token.id as string },
-        select: { active: true },
-      });
-      if (!stillValid || !stillValid.active) return null;
+      // Fail OPEN, not closed: a transient DB hiccup here must never log a
+      // real user out mid-session — only an actually-missing/inactive user
+      // should invalidate the token.
+      try {
+        const stillValid = await db.user.findUnique({
+          where: { id: token.id as string },
+          select: { active: true },
+        });
+        if (!stillValid || !stillValid.active) return null;
+      } catch (err) {
+        console.error("Session revalidation check failed, keeping session:", err);
+      }
       return token;
     },
     session: async ({ session, token }) => {

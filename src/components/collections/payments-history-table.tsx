@@ -1,6 +1,8 @@
 import { formatCLP, formatDateOnly } from "@/lib/format";
-import { parseChecks, formatCheckLabel } from "@/lib/collections";
+import { parseChecks, formatCheckLabel, type CollectionPaymentKind } from "@/lib/collections";
 import { DeletePaymentButton } from "@/components/collections/delete-payment-button";
+import { CollectionPaymentForm } from "@/components/collections/collection-payment-form";
+import { AgreementPaidCheckbox } from "@/components/collections/agreement-paid-checkbox";
 import {
   Table,
   TableBody,
@@ -17,6 +19,7 @@ export type PaymentHistoryRow = {
   checks: unknown;
   note: string | null;
   amount: number;
+  paid: boolean;
   createdBy: { name: string };
 };
 
@@ -24,11 +27,19 @@ export function PaymentsHistoryTable({
   title,
   payments,
   emptyMessage,
+  collectionId,
+  saldo,
+  kind,
 }: {
   title: string;
   payments: PaymentHistoryRow[];
   emptyMessage: string;
+  collectionId: string;
+  saldo: number;
+  kind: CollectionPaymentKind;
 }) {
+  const showPagado = kind === "ACUERDO";
+
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
       <div className="border-b px-4 py-3">
@@ -45,7 +56,8 @@ export function PaymentsHistoryTable({
               <TableHead>Nota</TableHead>
               <TableHead>Registrado por</TableHead>
               <TableHead className="text-right">Monto</TableHead>
-              <TableHead className="w-10"></TableHead>
+              {showPagado && <TableHead className="text-center">Pagado</TableHead>}
+              <TableHead className="w-16"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -76,8 +88,28 @@ export function PaymentsHistoryTable({
                   <TableCell className="text-right text-sm font-medium tabular-nums">
                     {formatCLP(p.amount)}
                   </TableCell>
+                  {showPagado && (
+                    <TableCell>
+                      <AgreementPaidCheckbox paymentId={p.id} paid={p.paid} />
+                    </TableCell>
+                  )}
                   <TableCell>
-                    <DeletePaymentButton paymentId={p.id} />
+                    <div className="flex items-center justify-end gap-0.5">
+                      <CollectionPaymentForm
+                        collectionId={collectionId}
+                        saldo={saldo}
+                        kind={kind}
+                        initial={{
+                          id: p.id,
+                          date: p.date.toISOString().slice(0, 10),
+                          amount: p.amount,
+                          method: p.method,
+                          note: p.note ?? "",
+                          checks,
+                        }}
+                      />
+                      <DeletePaymentButton paymentId={p.id} />
+                    </div>
                   </TableCell>
                 </TableRow>
               );

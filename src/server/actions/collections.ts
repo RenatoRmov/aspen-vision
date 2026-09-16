@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 import { can } from "@/lib/permissions";
 import { canonicalRut } from "@/lib/rut";
 
@@ -125,9 +126,107 @@ export async function addCollectionPayment(
   revalidatePath("/cobranzas");
 }
 
+export async function updateCollectionPayment(
+  paymentId: string,
+  input: CollectionPaymentInput,
+) {
+  await requireCollectionsAccess();
+  const data = paymentSchema.parse(input);
+  const hasChecks = data.method === "Cheque" && (data.checks?.length ?? 0) > 0;
+  const amount = hasChecks
+    ? data.checks!.reduce((sum, c) => sum + c.amount, 0)
+    : data.amount;
+
+  const existing = await db.collectionPayment.findUnique({ where: { id: paymentId } });
+  if (!existing) throw new Error("El registro no existe");
+
+  await db.collectionPayment.update({
+    where: { id: paymentId },
+    // kind is intentionally left untouched here — editing corrects amounts/
+    // dates/etc, it never turns an abono into an acuerdo or vice versa.
+    data: {
+      date: data.date,
+      amount,
+      method: data.method,
+      checks: hasChecks ? data.checks : Prisma.JsonNull,
+      note: data.note || null,
+    },
+  });
+
+  revalidatePath(`/cobranzas/${existing.collectionId}`);
+  revalidatePath("/cobranzas");
+}
+
 export async function deleteCollectionPayment(paymentId: string) {
   await requireCollectionsAccess();
   const payment = await db.collectionPayment.delete({ where: { id: paymentId } });
+  // If this was the abono that fulfilled a promise, the promise goes back
+  // to unfulfilled instead of silently pointing at a payment that's gone
+  // (the FK's ON DELETE SET NULL already cleared the link itself).
+  if (payment.fulfillsAgreementId) {
+    await db.collectionPayment.update({
+      where: { id: payment.fulfillsAgreementId },
+      data: { paid: false },
+    });
+  }
   revalidatePath(`/cobranzas/${payment.collectionId}`);
+  revalidatePath("/cobranzas");
+}
+
+/** Checking "Pagado" on an acuerdo comercial creates the matching abono for
+ * you instead of asking the same date/amount/method/checks to be re-entered. */
+export async function markAgreementPaid(paymentId: string) {
+  const session = await requireCollectionsAccess();
+  const agreement = await db.collectionPayment.findUnique({ where: { id: paymentId } });
+  if (!agreement) throw new Error("El acuerdo no existe");
+  if (agreement.kind !== "ACUERDO") throw new Error("Esto no es un acuerdo comercial");
+  if (agreement.paid) return;
+
+  await db.$transaction(async (tx) => {
+    await tx.collectionPayment.create({
+      data: {
+        collectionId: agreement.collectionId,
+        kind: "ABONO",
+        date: agreement.date,
+        amount: agreement.amount,
+        method: agreement.method,
+        checks: agreement.checks ?? undefined,
+        note: agreement.note,
+        createdById: session.user.id,
+        fulfillsAgreementId: agreement.id,
+      },
+    });
+    await tx.collectionPayment.update({
+      where: { id: agreement.id },
+      data: { paid: true },
+    });
+  });
+
+  revalidatePath(`/cobranzas/${agreement.collectionId}`);
+  revalidatePath("/cobranzas");
+}
+
+/** Unchecking "Pagado" undoes markAgreementPaid: removes the abono it
+ * created and resets the promise back to unfulfilled. */
+export async function unmarkAgreementPaid(paymentId: string) {
+  await requireCollectionsAccess();
+  const agreement = await db.collectionPayment.findUnique({
+    where: { id: paymentId },
+    include: { fulfilledBy: true },
+  });
+  if (!agreement) throw new Error("El acuerdo no existe");
+  if (!agreement.paid) return;
+
+  await db.$transaction(async (tx) => {
+    if (agreement.fulfilledBy) {
+      await tx.collectionPayment.delete({ where: { id: agreement.fulfilledBy.id } });
+    }
+    await tx.collectionPayment.update({
+      where: { id: agreement.id },
+      data: { paid: false },
+    });
+  });
+
+  revalidatePath(`/cobranzas/${agreement.collectionId}`);
   revalidatePath("/cobranzas");
 }

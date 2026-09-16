@@ -62,12 +62,18 @@ export default async function CollectionDetailPage({
             title="Historial de abonos"
             payments={abonos}
             emptyMessage="Aún no se ha registrado ningún abono."
+            collectionId={collection.id}
+            saldo={collection.saldo}
+            kind="ABONO"
           />
 
           <PaymentsHistoryTable
             title="Acuerdos comerciales"
             payments={acuerdos}
             emptyMessage="Aún no hay acuerdos de pago registrados."
+            collectionId={collection.id}
+            saldo={collection.saldo}
+            kind="ACUERDO"
           />
         </div>
 

@@ -8,6 +8,7 @@ import { CollectionsTable } from "@/components/collections/collections-table";
 import { CollectionsFilters } from "@/components/collections/collections-filters";
 import { ImportCollectionsDialog } from "@/components/collections/import-collections-dialog";
 import { AddCollectionButton } from "@/components/collections/add-collection-button";
+import { ExportCobranzasPdfButton } from "@/components/collections/export-cobranzas-pdf-button";
 
 export default async function CobranzasPage({
   searchParams,
@@ -36,6 +37,7 @@ export default async function CobranzasPage({
         description={`${rows.length} documento(s) · Saldo pendiente total: ${formatCLP(pendingBalance)}`}
         actions={
           <div className="flex flex-wrap gap-2">
+            <ExportCobranzasPdfButton />
             <ImportCollectionsDialog />
             <AddCollectionButton />
           </div>

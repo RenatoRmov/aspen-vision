@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { CalendarClock, CircleDollarSign, Loader2, Plus, Trash2 } from "lucide-react";
+import { CalendarClock, CircleDollarSign, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { PAYMENT_METHODS, type CollectionPaymentKind } from "@/lib/collections";
 import { formatCLP } from "@/lib/format";
-import { addCollectionPayment } from "@/server/actions/collections";
+import { addCollectionPayment, updateCollectionPayment } from "@/server/actions/collections";
 
 type FormValues = {
   date: string;
@@ -35,7 +35,30 @@ type FormValues = {
   checks: { label: string; amount: number; numero: string; banco: string }[];
 };
 
-function defaultValues(saldo: number): FormValues {
+export type PaymentEditData = {
+  id: string;
+  date: string; // yyyy-mm-dd
+  amount: number;
+  method: string;
+  note: string;
+  checks: { label: string; amount: number; numero?: string; banco?: string }[];
+};
+
+function seedValues(saldo: number, initial?: PaymentEditData): FormValues {
+  if (initial) {
+    return {
+      date: initial.date,
+      amount: initial.amount,
+      method: initial.method,
+      note: initial.note,
+      checks: initial.checks.map((c) => ({
+        label: c.label,
+        amount: c.amount,
+        numero: c.numero ?? "",
+        banco: c.banco ?? "",
+      })),
+    };
+  }
   return {
     date: new Date().toISOString().slice(0, 10),
     amount: saldo > 0 ? saldo : 0,
@@ -51,30 +74,36 @@ const COPY: Record<
     trigger: string;
     icon: typeof CircleDollarSign;
     title: string;
+    editTitle: string;
     description: string;
     dateLabel: string;
     amountLabel: string;
     submit: string;
+    editSubmit: string;
   }
 > = {
   ABONO: {
     trigger: "Registrar abono",
     icon: CircleDollarSign,
     title: "Registrar abono",
+    editTitle: "Editar abono",
     description: "El saldo se actualiza automáticamente al guardar.",
     dateLabel: "Fecha",
     amountLabel: "Monto",
     submit: "Registrar abono",
+    editSubmit: "Guardar cambios",
   },
   ACUERDO: {
     trigger: "Acuerdo Comercial",
     icon: CalendarClock,
     title: "Registrar acuerdo comercial",
+    editTitle: "Editar acuerdo comercial",
     description:
       "Solo informativo — no descuenta del saldo pendiente. Anota la fecha y el monto que el cliente prometió pagar.",
     dateLabel: "Fecha de pago prometida",
     amountLabel: "Monto acordado",
     submit: "Registrar acuerdo",
+    editSubmit: "Guardar cambios",
   },
 };
 
@@ -82,13 +111,17 @@ export function CollectionPaymentForm({
   collectionId,
   saldo,
   kind = "ABONO",
+  initial,
 }: {
   collectionId: string;
   saldo: number;
   kind?: CollectionPaymentKind;
+  /** When present, edits this payment instead of creating a new one. */
+  initial?: PaymentEditData;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const isEdit = !!initial;
   const copy = COPY[kind];
   const {
     register,
@@ -98,16 +131,18 @@ export function CollectionPaymentForm({
     setValue,
     control,
     formState: { isSubmitting },
-  } = useForm<FormValues>({ defaultValues: defaultValues(saldo) });
+  } = useForm<FormValues>({ defaultValues: seedValues(saldo, initial) });
 
   const { fields, append, remove } = useFieldArray({ control, name: "checks" });
 
-  // defaultValues is only read on mount, but this dialog stays mounted
-  // (just hidden) between opens while `saldo` keeps changing as payments
-  // come in — so re-seed the form to the current saldo each time it opens.
+  // defaultValues is only read on mount, but this dialog stays mounted (just
+  // hidden) between opens, so re-seed every time it opens: for a create
+  // dialog `saldo` keeps changing as payments come in, for an edit dialog
+  // `initial` may point at a different row each time.
   useEffect(() => {
-    if (open) reset(defaultValues(saldo));
-  }, [open, saldo, reset]);
+    if (open) reset(seedValues(saldo, initial));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, saldo, initial?.id, reset]);
 
   const method = watch("method");
   const checks = watch("checks");
@@ -129,45 +164,64 @@ export function CollectionPaymentForm({
       toast.error("Agrega al menos un cheque");
       return;
     }
+    const payload = {
+      kind,
+      date: new Date(`${values.date}T00:00:00.000Z`),
+      amount: Number(values.amount),
+      method: values.method,
+      note: values.note || undefined,
+      checks: isCheque
+        ? values.checks.map((c) => ({
+            label: c.label,
+            amount: Number(c.amount),
+            numero: c.numero || undefined,
+            banco: c.banco || undefined,
+          }))
+        : undefined,
+    };
     try {
-      await addCollectionPayment(collectionId, {
-        kind,
-        date: new Date(`${values.date}T00:00:00.000Z`),
-        amount: Number(values.amount),
-        method: values.method,
-        note: values.note || undefined,
-        checks: isCheque
-          ? values.checks.map((c) => ({
-              label: c.label,
-              amount: Number(c.amount),
-              numero: c.numero || undefined,
-              banco: c.banco || undefined,
-            }))
-          : undefined,
-      });
-      toast.success(kind === "ABONO" ? "Abono registrado" : "Acuerdo registrado");
-      reset(defaultValues(saldo));
+      if (isEdit) {
+        await updateCollectionPayment(initial.id, payload);
+        toast.success(kind === "ABONO" ? "Abono actualizado" : "Acuerdo actualizado");
+      } else {
+        await addCollectionPayment(collectionId, payload);
+        toast.success(kind === "ABONO" ? "Abono registrado" : "Acuerdo registrado");
+      }
+      reset(seedValues(saldo, initial));
       setOpen(false);
       router.refresh();
     } catch (err) {
+      const verb = isEdit ? "actualizar" : "registrar";
       toast.error(
         err instanceof Error
           ? err.message
-          : `No se pudo registrar el ${kind === "ABONO" ? "abono" : "acuerdo"}`,
+          : `No se pudo ${verb} el ${kind === "ABONO" ? "abono" : "acuerdo"}`,
       );
     }
   };
 
   return (
     <>
-      <Button variant={kind === "ACUERDO" ? "outline" : "default"} onClick={() => setOpen(true)}>
-        <copy.icon className="h-4 w-4" />
-        {copy.trigger}
-      </Button>
+      {isEdit ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => setOpen(true)}
+          title={copy.editTitle}
+        >
+          <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+        </Button>
+      ) : (
+        <Button variant={kind === "ACUERDO" ? "outline" : "default"} onClick={() => setOpen(true)}>
+          <copy.icon className="h-4 w-4" />
+          {copy.trigger}
+        </Button>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>{copy.title}</DialogTitle>
+            <DialogTitle>{isEdit ? copy.editTitle : copy.title}</DialogTitle>
             <DialogDescription>{copy.description}</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -288,7 +342,7 @@ export function CollectionPaymentForm({
               </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="animate-spin" />}
-                {copy.submit}
+                {isEdit ? copy.editSubmit : copy.submit}
               </Button>
             </div>
           </form>
