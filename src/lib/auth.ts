@@ -36,7 +36,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.id = user.id as string;
         token.role = (user as { role: Role }).role;
+        return token;
       }
+      // Revalidate on every request: if the account behind this token was
+      // removed or deactivated since it was issued (e.g. a database
+      // migration, or an admin deactivating the user), invalidate it
+      // instead of silently keeping a session that points at a user id
+      // which no longer exists — every write that stamps a row with
+      // session.user.id (audit trails like CollectionPayment.createdById)
+      // would otherwise fail with a confusing foreign-key error.
+      if (!token.id) return token;
+      const stillValid = await db.user.findUnique({
+        where: { id: token.id as string },
+        select: { active: true },
+      });
+      if (!stillValid || !stillValid.active) return null;
       return token;
     },
     session: async ({ session, token }) => {
