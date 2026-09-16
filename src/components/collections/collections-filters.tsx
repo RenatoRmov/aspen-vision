@@ -17,7 +17,7 @@ const ESTADO_OPTIONS: Record<string, string> = {
   ...ESTADO_LABEL,
 };
 
-export function CollectionsFilters() {
+export function CollectionsFilters({ showFolio = true }: { showFolio?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -91,12 +91,14 @@ export function CollectionsFilters() {
         onChange={(e) => setRut(e.target.value)}
         className="sm:max-w-40"
       />
-      <Input
-        placeholder="Folio"
-        value={folio}
-        onChange={(e) => setFolio(e.target.value)}
-        className="sm:max-w-32"
-      />
+      {showFolio && (
+        <Input
+          placeholder="Folio"
+          value={folio}
+          onChange={(e) => setFolio(e.target.value)}
+          className="sm:max-w-32"
+        />
+      )}
 
       <div className="flex items-center gap-1.5">
         <label className="text-xs text-muted-foreground">Desde</label>

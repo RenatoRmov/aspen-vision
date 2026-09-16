@@ -6,18 +6,9 @@ import { formatCLP, formatDateOnly, formatDateTime } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
 import { PageHeader } from "@/components/shared/page-header";
 import { CollectionEstadoBadge } from "@/components/collections/collection-estado-badge";
-import { parseChecks } from "@/lib/collections";
 import { CollectionPaymentForm } from "@/components/collections/collection-payment-form";
 import { CollectionRowActions } from "@/components/collections/collection-row-actions";
-import { DeletePaymentButton } from "@/components/collections/delete-payment-button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { PaymentsHistoryTable } from "@/components/collections/payments-history-table";
 
 export default async function CollectionDetailPage({
   params,
@@ -31,14 +22,18 @@ export default async function CollectionDetailPage({
   const collection = await getCollectionById(id);
   if (!collection) notFound();
 
+  const abonos = collection.payments.filter((p) => p.kind === "ABONO");
+  const acuerdos = collection.payments.filter((p) => p.kind === "ACUERDO");
+
   return (
     <div className="space-y-6">
       <PageHeader
         title={collection.folio}
         description={`${collection.businessName} · ${formatRut(collection.clientRut)}`}
         actions={
-          <div className="flex gap-2">
-            <CollectionPaymentForm collectionId={collection.id} saldo={collection.saldo} />
+          <div className="flex flex-wrap gap-2">
+            <CollectionPaymentForm collectionId={collection.id} saldo={collection.saldo} kind="ABONO" />
+            <CollectionPaymentForm collectionId={collection.id} saldo={collection.saldo} kind="ACUERDO" />
             <CollectionRowActions collection={collection} redirectAfterDeleteTo="/cobranzas" />
           </div>
         }
@@ -63,61 +58,17 @@ export default async function CollectionDetailPage({
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-xl border bg-card">
-            <div className="border-b px-4 py-3">
-              <h2 className="text-sm font-medium">Historial de abonos</h2>
-            </div>
-            {collection.payments.length === 0 ? (
-              <p className="p-8 text-center text-sm text-muted-foreground">
-                Aún no se ha registrado ningún abono.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead>Método</TableHead>
-                    <TableHead>Nota</TableHead>
-                    <TableHead>Registrado por</TableHead>
-                    <TableHead className="text-right">Monto</TableHead>
-                    <TableHead className="w-10"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {collection.payments.map((p) => {
-                    const checks = parseChecks(p.checks);
-                    return (
-                    <TableRow key={p.id}>
-                      <TableCell className="text-sm whitespace-nowrap">
-                        {formatDateOnly(p.date)}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {p.method}
-                        {checks.length > 0 && (
-                          <div className="mt-0.5 text-xs text-muted-foreground">
-                            {checks.map((c) => `${c.label}: ${formatCLP(c.amount)}`).join(" · ")}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="max-w-56 truncate text-sm text-muted-foreground" title={p.note ?? ""}>
-                        {p.note || "—"}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {p.createdBy.name}
-                      </TableCell>
-                      <TableCell className="text-right text-sm font-medium tabular-nums">
-                        {formatCLP(p.amount)}
-                      </TableCell>
-                      <TableCell>
-                        <DeletePaymentButton paymentId={p.id} />
-                      </TableCell>
-                    </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-          </div>
+          <PaymentsHistoryTable
+            title="Historial de abonos"
+            payments={abonos}
+            emptyMessage="Aún no se ha registrado ningún abono."
+          />
+
+          <PaymentsHistoryTable
+            title="Acuerdos comerciales"
+            payments={acuerdos}
+            emptyMessage="Aún no hay acuerdos de pago registrados."
+          />
         </div>
 
         <div className="space-y-3 rounded-xl border bg-card p-4 text-sm">

@@ -2,22 +2,33 @@ import { redirect } from "next/navigation";
 import { DollarSign, FileText, Clock, CheckCircle2 } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-import { getCollectionsInfo } from "@/server/queries/collections";
+import { getCollectionsInfo, type CollectionFilters } from "@/server/queries/collections";
 import { formatCLP, formatNumber } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { ChartCard } from "@/components/dashboard/chart-card";
+import { CollectionsFilters } from "@/components/collections/collections-filters";
 import { TopDebtorsTable } from "@/components/collections/top-debtors-table";
 import { EstadoBreakdown } from "@/components/collections/estado-breakdown";
 import { CollectionsTrendChart } from "@/components/collections/collections-trend-chart";
 
-export default async function InformacionCobranzasPage() {
+export default async function InformacionCobranzasPage({
+  searchParams,
+}: PageProps<"/cobranzas/informacion">) {
   const session = await auth();
   if (!session || !can(session.user.role, "collections:manage")) {
     redirect("/");
   }
 
-  const data = await getCollectionsInfo();
+  const sp = await searchParams;
+  const filters: CollectionFilters = {
+    estado: (typeof sp.estado === "string" ? sp.estado : "all") as CollectionFilters["estado"],
+    clientRut: typeof sp.rut === "string" ? sp.rut : undefined,
+    from: typeof sp.from === "string" ? sp.from : undefined,
+    to: typeof sp.to === "string" ? sp.to : undefined,
+  };
+
+  const data = await getCollectionsInfo(filters);
   const pendingCount = data.countByEstado.PENDIENTE + data.countByEstado.PARCIAL;
 
   return (
@@ -26,6 +37,8 @@ export default async function InformacionCobranzasPage() {
         title="Información Cobranzas"
         description="Resumen de la operación de cobranzas — solo datos de esta pestaña"
       />
+
+      <CollectionsFilters showFolio={false} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard

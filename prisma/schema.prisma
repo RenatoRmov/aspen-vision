@@ -54,6 +54,11 @@ enum NotificationType {
   GENERAL
 }
 
+enum CollectionPaymentKind {
+  ABONO // Real money received; counts toward saldo/estado
+  ACUERDO // Just a promise to pay by a given date; purely informational
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -297,17 +302,22 @@ model Collection {
 
 // totalAbonado/saldo/estado are derived from this ledger at read time, never
 // stored — same append-only-source-of-truth idea as InventoryMovement.
+// ACUERDO rows are purely informational (a client's promise to pay by a
+// given date) and are excluded from that saldo math entirely — only ABONO
+// rows count as real money received.
 model CollectionPayment {
-  id           String     @id @default(cuid())
+  id           String                @id @default(cuid())
   collectionId String
-  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  collection   Collection            @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  kind         CollectionPaymentKind @default(ABONO)
   date         DateTime
   amount       Int
   method       String
   // Only populated when method is "Cheque": an ordered breakdown like
-  // [{ label: "Cheque 1", amount: 10000 }, ...]. `amount` above is always
-  // the source of truth for the payment total (recomputed as the sum of
-  // these when present), this is just the itemized detail for display.
+  // [{ label: "Cheque 1", amount: 10000, numero: "123456", banco: "Banco Estado" }, ...].
+  // `amount` above is always the source of truth for the payment total
+  // (recomputed as the sum of these when present), this is just the
+  // itemized detail for display.
   checks       Json?
   note         String?
   createdById  String

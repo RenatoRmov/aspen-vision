@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { CircleDollarSign, Loader2, Plus, Trash2 } from "lucide-react";
+import { CalendarClock, CircleDollarSign, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,7 +23,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { PAYMENT_METHODS } from "@/lib/collections";
+import { PAYMENT_METHODS, type CollectionPaymentKind } from "@/lib/collections";
 import { formatCLP } from "@/lib/format";
 import { addCollectionPayment } from "@/server/actions/collections";
 
@@ -32,7 +32,7 @@ type FormValues = {
   amount: number;
   method: string;
   note: string;
-  checks: { label: string; amount: number }[];
+  checks: { label: string; amount: number; numero: string; banco: string }[];
 };
 
 function defaultValues(saldo: number): FormValues {
@@ -45,15 +45,51 @@ function defaultValues(saldo: number): FormValues {
   };
 }
 
+const COPY: Record<
+  CollectionPaymentKind,
+  {
+    trigger: string;
+    icon: typeof CircleDollarSign;
+    title: string;
+    description: string;
+    dateLabel: string;
+    amountLabel: string;
+    submit: string;
+  }
+> = {
+  ABONO: {
+    trigger: "Registrar abono",
+    icon: CircleDollarSign,
+    title: "Registrar abono",
+    description: "El saldo se actualiza automáticamente al guardar.",
+    dateLabel: "Fecha",
+    amountLabel: "Monto",
+    submit: "Registrar abono",
+  },
+  ACUERDO: {
+    trigger: "Acuerdo Comercial",
+    icon: CalendarClock,
+    title: "Registrar acuerdo comercial",
+    description:
+      "Solo informativo — no descuenta del saldo pendiente. Anota la fecha y el monto que el cliente prometió pagar.",
+    dateLabel: "Fecha de pago prometida",
+    amountLabel: "Monto acordado",
+    submit: "Registrar acuerdo",
+  },
+};
+
 export function CollectionPaymentForm({
   collectionId,
   saldo,
+  kind = "ABONO",
 }: {
   collectionId: string;
   saldo: number;
+  kind?: CollectionPaymentKind;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const copy = COPY[kind];
   const {
     register,
     handleSubmit,
@@ -84,7 +120,7 @@ export function CollectionPaymentForm({
     const next = v ?? PAYMENT_METHODS[0];
     setValue("method", next);
     if (next === "Cheque" && fields.length === 0) {
-      append({ label: "Cheque 1", amount: saldo > 0 ? saldo : 0 });
+      append({ label: "Cheque 1", amount: saldo > 0 ? saldo : 0, numero: "", banco: "" });
     }
   };
 
@@ -95,46 +131,54 @@ export function CollectionPaymentForm({
     }
     try {
       await addCollectionPayment(collectionId, {
+        kind,
         date: new Date(`${values.date}T00:00:00.000Z`),
         amount: Number(values.amount),
         method: values.method,
         note: values.note || undefined,
         checks: isCheque
-          ? values.checks.map((c) => ({ label: c.label, amount: Number(c.amount) }))
+          ? values.checks.map((c) => ({
+              label: c.label,
+              amount: Number(c.amount),
+              numero: c.numero || undefined,
+              banco: c.banco || undefined,
+            }))
           : undefined,
       });
-      toast.success("Abono registrado");
+      toast.success(kind === "ABONO" ? "Abono registrado" : "Acuerdo registrado");
       reset(defaultValues(saldo));
       setOpen(false);
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo registrar el abono");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : `No se pudo registrar el ${kind === "ABONO" ? "abono" : "acuerdo"}`,
+      );
     }
   };
 
   return (
     <>
-      <Button onClick={() => setOpen(true)}>
-        <CircleDollarSign className="h-4 w-4" />
-        Registrar abono
+      <Button variant={kind === "ACUERDO" ? "outline" : "default"} onClick={() => setOpen(true)}>
+        <copy.icon className="h-4 w-4" />
+        {copy.trigger}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Registrar abono</DialogTitle>
-            <DialogDescription>
-              El saldo se actualiza automáticamente al guardar.
-            </DialogDescription>
+            <DialogTitle>{copy.title}</DialogTitle>
+            <DialogDescription>{copy.description}</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="payment-date">Fecha</Label>
+                <Label htmlFor="payment-date">{copy.dateLabel}</Label>
                 <Input id="payment-date" type="date" {...register("date", { required: true })} />
               </div>
               {!isCheque && (
                 <div className="space-y-2">
-                  <Label htmlFor="payment-amount">Monto</Label>
+                  <Label htmlFor="payment-amount">{copy.amountLabel}</Label>
                   <Input
                     id="payment-amount"
                     type="number"
@@ -165,35 +209,49 @@ export function CollectionPaymentForm({
             </div>
 
             {isCheque && (
-              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+              <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
                 <Label>Cheques</Label>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {fields.map((field, index) => (
-                    <div key={field.id} className="flex items-center gap-2">
-                      <Input
-                        placeholder={`Cheque ${index + 1}`}
-                        {...register(`checks.${index}.label` as const, { required: true })}
-                        className="flex-1"
-                      />
-                      <Input
-                        type="number"
-                        min={1}
-                        placeholder="Monto"
-                        {...register(`checks.${index}.amount` as const, {
-                          required: true,
-                          valueAsNumber: true,
-                        })}
-                        className="w-28"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => remove(index)}
-                        disabled={fields.length === 1}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                      </Button>
+                    <div key={field.id} className="space-y-1.5 rounded-md bg-background p-2">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          placeholder={`Cheque ${index + 1}`}
+                          {...register(`checks.${index}.label` as const, { required: true })}
+                          className="flex-1"
+                        />
+                        <Input
+                          type="number"
+                          min={1}
+                          placeholder="Monto"
+                          {...register(`checks.${index}.amount` as const, {
+                            required: true,
+                            valueAsNumber: true,
+                          })}
+                          className="w-28"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => remove(index)}
+                          disabled={fields.length === 1}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-2 pr-8">
+                        <Input
+                          placeholder="N° de cheque (opcional)"
+                          {...register(`checks.${index}.numero` as const)}
+                          className="flex-1 text-xs"
+                        />
+                        <Input
+                          placeholder="Banco (opcional)"
+                          {...register(`checks.${index}.banco` as const)}
+                          className="flex-1 text-xs"
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -202,7 +260,7 @@ export function CollectionPaymentForm({
                   variant="outline"
                   size="sm"
                   onClick={() =>
-                    append({ label: `Cheque ${fields.length + 1}`, amount: 0 })
+                    append({ label: `Cheque ${fields.length + 1}`, amount: 0, numero: "", banco: "" })
                   }
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -230,7 +288,7 @@ export function CollectionPaymentForm({
               </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="animate-spin" />}
-                Registrar abono
+                {copy.submit}
               </Button>
             </div>
           </form>

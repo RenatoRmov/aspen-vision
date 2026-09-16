@@ -73,9 +73,15 @@ export async function createCollectionsBulk(items: CollectionInput[]) {
 const checkSchema = z.object({
   label: z.string().trim().min(1),
   amount: z.coerce.number().int().positive(),
+  numero: z.string().trim().optional(),
+  banco: z.string().trim().optional(),
 });
 
 const paymentSchema = z.object({
+  // ABONO = real money received, counts toward saldo. ACUERDO = just a
+  // client's promise to pay by `date`, purely informational (see the
+  // CollectionPayment model comment) — same shape either way.
+  kind: z.enum(["ABONO", "ACUERDO"]).default("ABONO"),
   date: z.coerce.date(),
   amount: z.coerce.number().int().positive("El monto debe ser mayor a 0"),
   method: z.string().trim().min(1, "Indica el método de pago"),
@@ -105,6 +111,7 @@ export async function addCollectionPayment(
   await db.collectionPayment.create({
     data: {
       collectionId,
+      kind: data.kind,
       date: data.date,
       amount,
       method: data.method,

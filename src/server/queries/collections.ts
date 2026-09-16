@@ -5,10 +5,12 @@ import type { Prisma } from "@/generated/prisma/client";
 import { computeSaldo, computeEstado, type CollectionEstado } from "@/lib/collections";
 import { normalizeRut } from "@/lib/rut";
 
-function withDerived<T extends { totalAmount: number; payments: { amount: number }[] }>(
+function withDerived<T extends { totalAmount: number; payments: { amount: number; kind: string }[] }>(
   c: T,
 ) {
-  const totalPaid = c.payments.reduce((s, p) => s + p.amount, 0);
+  const totalPaid = c.payments
+    .filter((p) => p.kind === "ABONO")
+    .reduce((s, p) => s + p.amount, 0);
   const saldo = computeSaldo(c.totalAmount, totalPaid);
   return { ...c, totalPaid, saldo, estado: computeEstado(saldo, c.totalAmount) };
 }
@@ -21,10 +23,7 @@ export type CollectionFilters = {
   to?: string; // yyyy-mm-dd
 };
 
-export async function getCollections(filters: CollectionFilters = {}) {
-  // estado/saldo are derived from payments at read time (never stored), so
-  // they can't be filtered in the DB query — narrow by the stored columns
-  // first, then filter by estado in JS after computing it below.
+function buildWhere(filters: CollectionFilters): Prisma.CollectionWhereInput {
   const where: Prisma.CollectionWhereInput = {};
   if (filters.clientRut) where.clientRut = { contains: normalizeRut(filters.clientRut) };
   if (filters.folio) where.folio = { contains: filters.folio.trim() };
@@ -34,11 +33,17 @@ export async function getCollections(filters: CollectionFilters = {}) {
       ...(filters.to ? { lte: new Date(`${filters.to}T23:59:59.999Z`) } : {}),
     };
   }
+  return where;
+}
 
+export async function getCollections(filters: CollectionFilters = {}) {
+  // estado/saldo are derived from payments at read time (never stored), so
+  // they can't be filtered in the DB query — narrow by the stored columns
+  // first, then filter by estado in JS after computing it below.
   const rows = await db.collection.findMany({
-    where,
+    where: buildWhere(filters),
     orderBy: { documentDate: "asc" },
-    include: { payments: { select: { amount: true } } },
+    include: { payments: { select: { amount: true, kind: true } } },
   });
   const withEstado = rows.map(withDerived);
 
@@ -48,14 +53,18 @@ export async function getCollections(filters: CollectionFilters = {}) {
   return withEstado;
 }
 
-/** Aggregates for the standalone "Información Cobranzas" dashboard — always
- * the full dataset (no filters), since this is a point-in-time snapshot of
- * who owes what, not a period-bound report like Resumen's sales figures. */
-export async function getCollectionsInfo() {
+/** Aggregates for the standalone "Información Cobranzas" dashboard. Accepts
+ * the same Fecha/Rut/Estado filters as the Cobranzas list (no Folio — an
+ * aggregate view doesn't make sense narrowed to one document). */
+export async function getCollectionsInfo(filters: CollectionFilters = {}) {
   const rows = await db.collection.findMany({
-    include: { payments: { select: { amount: true, date: true } } },
+    where: buildWhere(filters),
+    include: { payments: { select: { amount: true, date: true, kind: true } } },
   });
-  const withEstado = rows.map(withDerived);
+  let withEstado = rows.map(withDerived);
+  if (filters.estado && filters.estado !== "all") {
+    withEstado = withEstado.filter((c) => c.estado === filters.estado);
+  }
 
   const totalDocuments = withEstado.length;
   const totalInvoiced = withEstado.reduce((s, c) => s + c.totalAmount, 0);
@@ -90,7 +99,7 @@ export async function getCollectionsInfo() {
     .sort((a, b) => b.saldo - a.saldo)
     .slice(0, 10);
 
-  // Last 6 months of abonos received, oldest first.
+  // Last 6 months of abonos received (real money only), oldest first.
   const now = new Date();
   const months: { key: string; label: string }[] = [];
   for (let i = 5; i >= 0; i--) {
@@ -100,6 +109,7 @@ export async function getCollectionsInfo() {
   const collectedByMonth = new Map(months.map((m) => [m.key, 0]));
   for (const c of withEstado) {
     for (const p of c.payments) {
+      if (p.kind !== "ABONO") continue;
       const key = format(new Date(p.date), "yyyy-MM");
       if (collectedByMonth.has(key)) {
         collectedByMonth.set(key, collectedByMonth.get(key)! + p.amount);
