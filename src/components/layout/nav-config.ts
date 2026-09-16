@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   UserCog,
   Wallet,
+  ChartNoAxesCombined,
   type LucideIcon,
 } from "lucide-react";
 
@@ -24,6 +25,12 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/embajadores", label: "Embajadores", icon: Users },
   { href: "/garantias", label: "Garantías", icon: ShieldCheck },
   { href: "/cobranzas", label: "Cobranzas", icon: Wallet, roles: ["ADMIN", "PREPARADOR"] },
+  {
+    href: "/cobranzas/informacion",
+    label: "Información Cobranzas",
+    icon: ChartNoAxesCombined,
+    roles: ["ADMIN", "PREPARADOR"],
+  },
   { href: "/usuarios", label: "Usuarios", icon: UserCog, roles: ["ADMIN"] },
 ];
 

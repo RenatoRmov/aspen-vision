@@ -6,6 +6,7 @@ import { formatCLP, formatDateOnly, formatDateTime } from "@/lib/format";
 import { formatRut } from "@/lib/rut";
 import { PageHeader } from "@/components/shared/page-header";
 import { CollectionEstadoBadge } from "@/components/collections/collection-estado-badge";
+import { parseChecks } from "@/lib/collections";
 import { CollectionPaymentForm } from "@/components/collections/collection-payment-form";
 import { CollectionRowActions } from "@/components/collections/collection-row-actions";
 import { DeletePaymentButton } from "@/components/collections/delete-payment-button";
@@ -83,12 +84,21 @@ export default async function CollectionDetailPage({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {collection.payments.map((p) => (
+                  {collection.payments.map((p) => {
+                    const checks = parseChecks(p.checks);
+                    return (
                     <TableRow key={p.id}>
                       <TableCell className="text-sm whitespace-nowrap">
                         {formatDateOnly(p.date)}
                       </TableCell>
-                      <TableCell className="text-sm">{p.method}</TableCell>
+                      <TableCell className="text-sm">
+                        {p.method}
+                        {checks.length > 0 && (
+                          <div className="mt-0.5 text-xs text-muted-foreground">
+                            {checks.map((c) => `${c.label}: ${formatCLP(c.amount)}`).join(" · ")}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className="max-w-56 truncate text-sm text-muted-foreground" title={p.note ?? ""}>
                         {p.note || "—"}
                       </TableCell>
@@ -102,7 +112,8 @@ export default async function CollectionDetailPage({
                         <DeletePaymentButton paymentId={p.id} />
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}

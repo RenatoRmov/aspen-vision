@@ -25,3 +25,17 @@ export const ESTADO_LABEL: Record<CollectionEstado, string> = {
 };
 
 export const PAYMENT_METHODS = ["Transferencia", "Efectivo", "Débito", "Crédito", "Cheque", "Otro"];
+
+export type CollectionCheck = { label: string; amount: number };
+
+/** `CollectionPayment.checks` is a Prisma Json field, so it comes back as `unknown` at runtime — parse it defensively rather than trusting the stored shape. */
+export function parseChecks(value: unknown): CollectionCheck[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (c): c is CollectionCheck =>
+      typeof c === "object" &&
+      c !== null &&
+      typeof (c as CollectionCheck).label === "string" &&
+      typeof (c as CollectionCheck).amount === "number",
+  );
+}

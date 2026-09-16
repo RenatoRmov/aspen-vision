@@ -304,6 +304,11 @@ model CollectionPayment {
   date         DateTime
   amount       Int
   method       String
+  // Only populated when method is "Cheque": an ordered breakdown like
+  // [{ label: "Cheque 1", amount: 10000 }, ...]. `amount` above is always
+  // the source of truth for the payment total (recomputed as the sum of
+  // these when present), this is just the itemized detail for display.
+  checks       Json?
   note         String?
   createdById  String
   createdBy    User       @relation(fields: [createdById], references: [id])

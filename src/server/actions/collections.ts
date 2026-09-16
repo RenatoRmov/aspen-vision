@@ -70,11 +70,18 @@ export async function createCollectionsBulk(items: CollectionInput[]) {
   return result.count;
 }
 
+const checkSchema = z.object({
+  label: z.string().trim().min(1),
+  amount: z.coerce.number().int().positive(),
+});
+
 const paymentSchema = z.object({
   date: z.coerce.date(),
   amount: z.coerce.number().int().positive("El monto debe ser mayor a 0"),
   method: z.string().trim().min(1, "Indica el método de pago"),
   note: z.string().trim().optional(),
+  // Only meaningful when method is "Cheque" — see the model comment.
+  checks: z.array(checkSchema).optional(),
 });
 
 export type CollectionPaymentInput = z.infer<typeof paymentSchema>;
@@ -85,6 +92,12 @@ export async function addCollectionPayment(
 ) {
   const session = await requireCollectionsAccess();
   const data = paymentSchema.parse(input);
+  const hasChecks = data.method === "Cheque" && (data.checks?.length ?? 0) > 0;
+  // The itemized cheques are the source of truth for the total when
+  // present, so the payment amount can never drift from their sum.
+  const amount = hasChecks
+    ? data.checks!.reduce((sum, c) => sum + c.amount, 0)
+    : data.amount;
 
   const collection = await db.collection.findUnique({ where: { id: collectionId } });
   if (!collection) throw new Error("La cobranza no existe");
@@ -93,8 +106,9 @@ export async function addCollectionPayment(
     data: {
       collectionId,
       date: data.date,
-      amount: data.amount,
+      amount,
       method: data.method,
+      checks: hasChecks ? data.checks : undefined,
       note: data.note || null,
       createdById: session.user.id,
     },
