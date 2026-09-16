@@ -6,6 +6,7 @@ import {
   Users,
   ShieldCheck,
   UserCog,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -22,6 +23,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/ventas", label: "Ventas", icon: ShoppingBag },
   { href: "/embajadores", label: "Embajadores", icon: Users },
   { href: "/garantias", label: "Garantías", icon: ShieldCheck },
+  { href: "/cobranzas", label: "Cobranzas", icon: Wallet, roles: ["ADMIN", "PREPARADOR"] },
   { href: "/usuarios", label: "Usuarios", icon: UserCog, roles: ["ADMIN"] },
 ];
 

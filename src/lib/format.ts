@@ -33,3 +33,21 @@ const dateTimeFormatter = new Intl.DateTimeFormat("es-CL", {
 export function formatDateTime(date: Date | string) {
   return dateTimeFormatter.format(new Date(date));
 }
+
+const dateOnlyFormatter = new Intl.DateTimeFormat("es-CL", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/**
+ * For pure calendar dates with no meaningful time-of-day (e.g. a document or
+ * payment date picked from a plain <input type="date">). Reads UTC
+ * components so the calendar day never shifts depending on the server's or
+ * viewer's local timezone — unlike formatDate/formatDateTime, which are for
+ * real timestamps and should show in local time.
+ */
+export function formatDateOnly(date: Date | string) {
+  return dateOnlyFormatter.format(new Date(date));
+}
