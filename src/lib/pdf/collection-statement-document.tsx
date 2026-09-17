@@ -74,6 +74,18 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 10, fontFamily: "Helvetica-Bold" },
   totalValue: { fontSize: 12, fontFamily: "Helvetica-Bold" },
   noAccounts: { fontSize: 9, color: "#666666", marginTop: 8 },
+  bankBox: {
+    marginTop: 20,
+    padding: 8,
+    border: "0.75pt solid #999999",
+  },
+  bankTitle: {
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+    marginBottom: 4,
+    textTransform: "uppercase",
+  },
+  bankLine: { fontSize: 8.5, marginBottom: 1 },
   footer: {
     position: "absolute",
     bottom: 24,
@@ -200,6 +212,18 @@ export function CollectionStatementDocument({
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>Total deuda pendiente</Text>
                   <Text style={styles.totalValue}>{formatCLP(totalPending)}</Text>
+                </View>
+
+                <View style={styles.bankBox}>
+                  <Text style={styles.bankTitle}>Datos para transferencia</Text>
+                  <Text style={styles.bankLine}>
+                    {COMPANY_INFO.bank.accountHolder} — RUT {COMPANY_INFO.bank.accountHolderRut}
+                  </Text>
+                  <Text style={styles.bankLine}>
+                    {COMPANY_INFO.bank.bankName} · {COMPANY_INFO.bank.accountType} ·{" "}
+                    {COMPANY_INFO.bank.accountNumber}
+                  </Text>
+                  <Text style={styles.bankLine}>{COMPANY_INFO.bank.email}</Text>
                 </View>
               </>
             )}
