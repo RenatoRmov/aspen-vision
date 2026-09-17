@@ -1,6 +1,7 @@
 import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
 import { formatCLP } from "@/lib/format";
 import { COMPANY_INFO } from "@/lib/company-info";
+import type { CollectionCreditItem } from "@/lib/collections";
 
 const styles = StyleSheet.create({
   page: {
@@ -49,7 +50,8 @@ const styles = StyleSheet.create({
   colFolio: { width: "12%" },
   // "Born from" the folio number, like a subscript: smaller and italic so a
   // credit note reads as a note attached to that document, not a peer value.
-  folioCreditNote: { fontSize: 8, fontStyle: "italic", color: "#666666", marginTop: 1 },
+  folioCreditNote: { marginTop: 2 },
+  folioCreditNoteLine: { fontSize: 8, fontStyle: "italic", color: "#666666", lineHeight: 1.3 },
   colDate: { width: "13%" },
   colAmount: { width: "17%", textAlign: "right" },
   colAmountLast: { width: "19%", textAlign: "right" },
@@ -83,6 +85,7 @@ export type StatementAccount = {
   taxAmount: number;
   totalAmount: number;
   totalCreditNotes: number;
+  creditNoteItems: CollectionCreditItem[];
   totalPaid: number;
   saldo: number;
 };
@@ -165,9 +168,17 @@ export function CollectionStatementDocument({
                       <View style={styles.colFolio}>
                         <Text>{a.folio}</Text>
                         {a.totalCreditNotes > 0 && (
-                          <Text style={styles.folioCreditNote}>
-                            N. Créd. -{formatCLP(a.totalCreditNotes)}
-                          </Text>
+                          <View style={styles.folioCreditNote}>
+                            <Text style={styles.folioCreditNoteLine}>N. Créd.:</Text>
+                            {a.creditNoteItems.map((it, i) => (
+                              <Text key={i} style={styles.folioCreditNoteLine}>
+                                {it.modelo} x{it.cantidad}
+                              </Text>
+                            ))}
+                            <Text style={styles.folioCreditNoteLine}>
+                              -{formatCLP(a.totalCreditNotes)}
+                            </Text>
+                          </View>
                         )}
                       </View>
                       <Text style={styles.colDate}>{formatDateUTC(a.documentDate)}</Text>

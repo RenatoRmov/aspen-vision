@@ -10,6 +10,7 @@ import {
   type StatementClient,
 } from "@/lib/pdf/collection-statement-document";
 import { formatRut } from "@/lib/rut";
+import { parseCreditItems } from "@/lib/collections";
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -41,6 +42,13 @@ export async function GET(request: Request) {
       businessName: r.businessName,
       accounts: [],
     };
+    // Flattened across every nota de crédito on this document — usually
+    // just one, but nothing stops a document from having more than one
+    // return over time.
+    const creditNoteItems = r.payments
+      .filter((p) => p.kind === "NOTA_CREDITO")
+      .flatMap((p) => parseCreditItems(p.creditItems));
+
     entry.accounts.push({
       folio: r.folio,
       documentDate: r.documentDate,
@@ -48,6 +56,7 @@ export async function GET(request: Request) {
       taxAmount: r.taxAmount,
       totalAmount: r.totalAmount,
       totalCreditNotes: r.totalCreditNotes,
+      creditNoteItems,
       totalPaid: r.totalPaid,
       saldo: r.saldo,
     });

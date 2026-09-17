@@ -57,7 +57,7 @@ export async function getCollections(filters: CollectionFilters = {}) {
   const rows = await db.collection.findMany({
     where: buildWhere(filters),
     orderBy: { documentDate: "asc" },
-    include: { payments: { select: { amount: true, kind: true } } },
+    include: { payments: { select: { amount: true, kind: true, creditItems: true } } },
   });
   const withEstado = rows.map(withDerived);
 
