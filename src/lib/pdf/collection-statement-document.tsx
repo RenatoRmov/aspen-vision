@@ -44,14 +44,23 @@ const styles = StyleSheet.create({
   },
   tableRow: {
     flexDirection: "row",
-    borderBottom: "0.5pt solid #cccccc",
     paddingVertical: 4,
   },
+  // Only the last visual line of an account (the row itself, or its credit
+  // note line when it has one) gets the separator — otherwise every account
+  // would get a double line between its own row and its credit note note.
+  tableRowBorder: { borderBottom: "0.5pt solid #cccccc" },
   colFolio: { width: "12%" },
-  // "Born from" the folio number, like a subscript: smaller and italic so a
-  // credit note reads as a note attached to that document, not a peer value.
-  folioCreditNote: { marginTop: 2 },
-  folioCreditNoteLine: { fontSize: 8, fontStyle: "italic", color: "#666666", lineHeight: 1.3 },
+  // Runs sideways in its own thin row instead of stacking under the folio —
+  // reads as a note "born from" that document (small, italic, slightly
+  // indented) without eating vertical space the way one line per model did.
+  creditNoteRow: { flexDirection: "row", paddingBottom: 4 },
+  creditNoteText: {
+    marginLeft: 6,
+    fontSize: 8,
+    fontStyle: "italic",
+    color: "#666666",
+  },
   colDate: { width: "13%" },
   colAmount: { width: "17%", textAlign: "right" },
   colAmountLast: { width: "19%", textAlign: "right" },
@@ -164,29 +173,26 @@ export function CollectionStatementDocument({
                     <Text style={styles.colAmountLast}>Deuda Total Pendiente</Text>
                   </View>
                   {client.accounts.map((a) => (
-                    <View style={styles.tableRow} key={a.folio}>
-                      <View style={styles.colFolio}>
-                        <Text>{a.folio}</Text>
-                        {a.totalCreditNotes > 0 && (
-                          <View style={styles.folioCreditNote}>
-                            <Text style={styles.folioCreditNoteLine}>N. Créd.:</Text>
-                            {a.creditNoteItems.map((it, i) => (
-                              <Text key={i} style={styles.folioCreditNoteLine}>
-                                {it.modelo} x{it.cantidad}
-                              </Text>
-                            ))}
-                            <Text style={styles.folioCreditNoteLine}>
-                              -{formatCLP(a.totalCreditNotes)}
-                            </Text>
-                          </View>
-                        )}
+                    <View key={a.folio}>
+                      <View style={a.totalCreditNotes > 0 ? styles.tableRow : { ...styles.tableRow, ...styles.tableRowBorder }}>
+                        <Text style={styles.colFolio}>{a.folio}</Text>
+                        <Text style={styles.colDate}>{formatDateUTC(a.documentDate)}</Text>
+                        <Text style={styles.colAmount}>{formatCLP(a.netAmount)}</Text>
+                        <Text style={styles.colAmount}>{formatCLP(a.taxAmount)}</Text>
+                        <Text style={styles.colAmount}>{formatCLP(a.totalAmount)}</Text>
+                        <Text style={styles.colAmount}>{formatCLP(a.totalPaid)}</Text>
+                        <Text style={styles.colAmountLast}>{formatCLP(a.saldo)}</Text>
                       </View>
-                      <Text style={styles.colDate}>{formatDateUTC(a.documentDate)}</Text>
-                      <Text style={styles.colAmount}>{formatCLP(a.netAmount)}</Text>
-                      <Text style={styles.colAmount}>{formatCLP(a.taxAmount)}</Text>
-                      <Text style={styles.colAmount}>{formatCLP(a.totalAmount)}</Text>
-                      <Text style={styles.colAmount}>{formatCLP(a.totalPaid)}</Text>
-                      <Text style={styles.colAmountLast}>{formatCLP(a.saldo)}</Text>
+                      {a.totalCreditNotes > 0 && (
+                        <View style={{ ...styles.creditNoteRow, ...styles.tableRowBorder }}>
+                          <Text style={styles.creditNoteText}>
+                            N. Créd.:{" "}
+                            {a.creditNoteItems.map((it) => `${it.modelo} x${it.cantidad}`).join(", ")}
+                            {"  ("}-{formatCLP(a.totalCreditNotes)}
+                            {")"}
+                          </Text>
+                        </View>
+                      )}
                     </View>
                   ))}
                 </View>
