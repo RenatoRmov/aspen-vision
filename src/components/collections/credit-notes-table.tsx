@@ -1,5 +1,5 @@
 import { formatCLP, formatDateOnly } from "@/lib/format";
-import type { CollectionCreditItem } from "@/lib/collections";
+import { computeCreditNoteTotals, type CollectionCreditItem } from "@/lib/collections";
 import { DeletePaymentButton } from "@/components/collections/delete-payment-button";
 import { CreditNoteForm } from "@/components/collections/credit-note-form";
 import {
@@ -49,46 +49,52 @@ export function CreditNotesTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {payments.map((p) => (
-              <TableRow key={p.id}>
-                <TableCell className="text-sm whitespace-nowrap">
-                  {formatDateOnly(p.date)}
-                </TableCell>
-                <TableCell className="text-sm">
-                  <div className="space-y-0.5">
-                    {p.items.map((it, i) => (
-                      <div key={i} className="text-xs text-muted-foreground">
-                        {it.modelo} · {it.cantidad} x {formatCLP(it.valorUnitario)}
-                      </div>
-                    ))}
-                  </div>
-                </TableCell>
-                <TableCell
-                  className="max-w-56 truncate text-sm text-muted-foreground"
-                  title={p.note ?? ""}
-                >
-                  {p.note || "—"}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">{p.createdBy.name}</TableCell>
-                <TableCell className="text-right text-sm font-medium tabular-nums">
-                  -{formatCLP(p.amount)}
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center justify-end gap-0.5">
-                    <CreditNoteForm
-                      collectionId={collectionId}
-                      initial={{
-                        id: p.id,
-                        date: p.date.toISOString().slice(0, 10),
-                        note: p.note ?? "",
-                        items: p.items,
-                      }}
-                    />
-                    <DeletePaymentButton paymentId={p.id} label="nota de crédito" />
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+            {payments.map((p) => {
+              const { bruto, iva } = computeCreditNoteTotals(p.items);
+              return (
+                <TableRow key={p.id}>
+                  <TableCell className="text-sm whitespace-nowrap">
+                    {formatDateOnly(p.date)}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    <div className="space-y-0.5">
+                      {p.items.map((it, i) => (
+                        <div key={i} className="text-xs text-muted-foreground">
+                          {it.modelo} · {it.cantidad} x {formatCLP(it.valorUnitario)}
+                        </div>
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell
+                    className="max-w-56 truncate text-sm text-muted-foreground"
+                    title={p.note ?? ""}
+                  >
+                    {p.note || "—"}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{p.createdBy.name}</TableCell>
+                  <TableCell className="text-right text-sm">
+                    <div className="font-medium tabular-nums">-{formatCLP(p.amount)}</div>
+                    <div className="text-xs text-muted-foreground tabular-nums">
+                      Bruto {formatCLP(bruto)} + IVA {formatCLP(iva)}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-0.5">
+                      <CreditNoteForm
+                        collectionId={collectionId}
+                        initial={{
+                          id: p.id,
+                          date: p.date.toISOString().slice(0, 10),
+                          note: p.note ?? "",
+                          items: p.items,
+                        }}
+                      />
+                      <DeletePaymentButton paymentId={p.id} label="nota de crédito" />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}

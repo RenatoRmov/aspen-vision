@@ -17,6 +17,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { formatCLP } from "@/lib/format";
+import { computeCreditNoteTotals } from "@/lib/collections";
 import { addCreditNote, updateCreditNote } from "@/server/actions/collections";
 
 type FormValues = {
@@ -73,9 +74,11 @@ export function CreditNoteForm({
   }, [open, initial?.id, reset]);
 
   const items = watch("items");
-  const total = items.reduce(
-    (sum, it) => sum + (Number(it.cantidad) || 0) * (Number(it.valorUnitario) || 0),
-    0,
+  const { bruto, iva, total } = computeCreditNoteTotals(
+    items.map((it) => ({
+      cantidad: Number(it.cantidad) || 0,
+      valorUnitario: Number(it.valorUnitario) || 0,
+    })),
   );
 
   const onSubmit = async (values: FormValues) => {
@@ -193,10 +196,20 @@ export function CreditNoteForm({
                 <Plus className="h-3.5 w-3.5" />
                 Agregar modelo
               </Button>
-              <p className="flex justify-between border-t pt-2 text-sm">
-                <span className="text-muted-foreground">Total nota de crédito</span>
-                <span className="font-medium tabular-nums">{formatCLP(total)}</span>
-              </p>
+              <div className="space-y-1 border-t pt-2 text-sm">
+                <p className="flex justify-between">
+                  <span className="text-muted-foreground">Nota de Crédito Bruto</span>
+                  <span className="tabular-nums">{formatCLP(bruto)}</span>
+                </p>
+                <p className="flex justify-between">
+                  <span className="text-muted-foreground">Valor IVA (19%)</span>
+                  <span className="tabular-nums">{formatCLP(iva)}</span>
+                </p>
+                <p className="flex justify-between border-t pt-1">
+                  <span className="font-medium">Valor Total Nota de Crédito</span>
+                  <span className="font-medium tabular-nums">{formatCLP(total)}</span>
+                </p>
+              </div>
             </div>
 
             <div className="space-y-2">

@@ -90,3 +90,18 @@ export function parseCreditItems(value: unknown): CollectionCreditItem[] {
       valorUnitario: it.valorUnitario as number,
     }));
 }
+
+// Same rate used for sales (see IVA_RATE in sale-form.tsx/server/actions/sales.ts).
+export const CREDIT_NOTE_IVA_RATE = 0.19;
+
+/**
+ * The values entered per model (cantidad, valorUnitario) are net-of-tax,
+ * same as a sale line — `bruto` is their raw sum, IVA is computed on top of
+ * it, and `total` (bruto + iva) is what actually gets deducted from the
+ * document's Monto Total/saldo (stored as the payment's `amount`).
+ */
+export function computeCreditNoteTotals(items: { cantidad: number; valorUnitario: number }[]) {
+  const bruto = items.reduce((s, it) => s + it.cantidad * it.valorUnitario, 0);
+  const iva = Math.round(bruto * CREDIT_NOTE_IVA_RATE);
+  return { bruto, iva, total: bruto + iva };
+}

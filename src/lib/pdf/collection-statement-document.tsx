@@ -47,6 +47,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   colFolio: { width: "12%" },
+  // "Born from" the folio number, like a subscript: smaller and italic so a
+  // credit note reads as a note attached to that document, not a peer value.
+  folioCreditNote: { fontSize: 8, fontStyle: "italic", color: "#666666", marginTop: 1 },
   colDate: { width: "13%" },
   colAmount: { width: "17%", textAlign: "right" },
   colAmountLast: { width: "19%", textAlign: "right" },
@@ -79,6 +82,7 @@ export type StatementAccount = {
   netAmount: number;
   taxAmount: number;
   totalAmount: number;
+  totalCreditNotes: number;
   totalPaid: number;
   saldo: number;
 };
@@ -158,7 +162,14 @@ export function CollectionStatementDocument({
                   </View>
                   {client.accounts.map((a) => (
                     <View style={styles.tableRow} key={a.folio}>
-                      <Text style={styles.colFolio}>{a.folio}</Text>
+                      <View style={styles.colFolio}>
+                        <Text>{a.folio}</Text>
+                        {a.totalCreditNotes > 0 && (
+                          <Text style={styles.folioCreditNote}>
+                            N. Créd. -{formatCLP(a.totalCreditNotes)}
+                          </Text>
+                        )}
+                      </View>
                       <Text style={styles.colDate}>{formatDateUTC(a.documentDate)}</Text>
                       <Text style={styles.colAmount}>{formatCLP(a.netAmount)}</Text>
                       <Text style={styles.colAmount}>{formatCLP(a.taxAmount)}</Text>

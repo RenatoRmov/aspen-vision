@@ -47,6 +47,7 @@ export async function GET(request: Request) {
       netAmount: r.netAmount,
       taxAmount: r.taxAmount,
       totalAmount: r.totalAmount,
+      totalCreditNotes: r.totalCreditNotes,
       totalPaid: r.totalPaid,
       saldo: r.saldo,
     });

@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { can } from "@/lib/permissions";
 import { canonicalRut } from "@/lib/rut";
+import { computeCreditNoteTotals } from "@/lib/collections";
 
 async function requireCollectionsAccess() {
   const session = await auth();
@@ -210,7 +211,9 @@ async function assertCreditNoteFits(collectionId: string, amount: number, exclud
 export async function addCreditNote(collectionId: string, input: CreditNoteInput) {
   const session = await requireCollectionsAccess();
   const data = creditNoteSchema.parse(input);
-  const amount = data.items.reduce((s, i) => s + i.cantidad * i.valorUnitario, 0);
+  // `amount` (what's actually deducted from Monto Total/saldo) is the
+  // bruto+IVA total — the items themselves are net-of-tax, same as a sale.
+  const { total: amount } = computeCreditNoteTotals(data.items);
   await assertCreditNoteFits(collectionId, amount);
 
   await db.collectionPayment.create({
@@ -233,7 +236,7 @@ export async function addCreditNote(collectionId: string, input: CreditNoteInput
 export async function updateCreditNote(paymentId: string, input: CreditNoteInput) {
   await requireCollectionsAccess();
   const data = creditNoteSchema.parse(input);
-  const amount = data.items.reduce((s, i) => s + i.cantidad * i.valorUnitario, 0);
+  const { total: amount } = computeCreditNoteTotals(data.items);
 
   const existing = await db.collectionPayment.findUnique({ where: { id: paymentId } });
   if (!existing) throw new Error("El registro no existe");
