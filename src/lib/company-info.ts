@@ -7,8 +7,7 @@ export const COMPANY_INFO = {
   rut: "76.584.170-4",
   address: "Av. Del Valle Norte 945, oficina 3612, Huechuraba",
   email: "aspenvisioncl@gmail.com",
-  // No hay teléfono real informado todavía — placeholder hasta que se defina.
-  phone: "+56 9 0000 0000",
+  phone: "+56 9 9319 7863",
   bank: {
     bankName: "Banco Santander",
     accountType: "Cuenta Corriente",
