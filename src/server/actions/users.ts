@@ -11,7 +11,7 @@ const userSchema = z.object({
   name: z.string().trim().min(1, "El nombre es obligatorio"),
   email: z.email("Correo inválido").transform((v) => v.toLowerCase().trim()),
   password: z.string().min(6, "Mínimo 6 caracteres"),
-  role: z.enum(["ADMIN", "VENDEDOR", "PREPARADOR"]),
+  role: z.enum(["ADMIN", "VENDEDOR", "PREPARADOR", "CONTADORA"]),
 });
 
 async function requireUserManager() {
@@ -46,7 +46,7 @@ export async function setUserActive(userId: string, active: boolean) {
 
 export async function updateUserRole(
   userId: string,
-  role: "ADMIN" | "VENDEDOR" | "PREPARADOR",
+  role: "ADMIN" | "VENDEDOR" | "PREPARADOR" | "CONTADORA",
 ) {
   await requireUserManager();
   await db.user.update({ where: { id: userId }, data: { role } });

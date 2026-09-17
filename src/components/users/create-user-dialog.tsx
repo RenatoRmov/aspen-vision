@@ -29,7 +29,7 @@ type FormValues = {
   name: string;
   email: string;
   password: string;
-  role: "ADMIN" | "VENDEDOR" | "PREPARADOR";
+  role: "ADMIN" | "VENDEDOR" | "PREPARADOR" | "CONTADORA";
 };
 
 export function CreateUserDialog() {

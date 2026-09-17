@@ -1,5 +1,9 @@
 import { formatCLP, formatDateOnly } from "@/lib/format";
 import { parseChecks, formatCheckLabel, type CollectionPaymentKind } from "@/lib/collections";
+
+/** Abono/Acuerdo only — Nota de Crédito has its own history table (different
+ * row shape: line items, no method/checks). */
+type PaymentHistoryKind = Exclude<CollectionPaymentKind, "NOTA_CREDITO">;
 import { DeletePaymentButton } from "@/components/collections/delete-payment-button";
 import { CollectionPaymentForm } from "@/components/collections/collection-payment-form";
 import { AgreementPaidCheckbox } from "@/components/collections/agreement-paid-checkbox";
@@ -36,7 +40,7 @@ export function PaymentsHistoryTable({
   emptyMessage: string;
   collectionId: string;
   saldo: number;
-  kind: CollectionPaymentKind;
+  kind: PaymentHistoryKind;
 }) {
   const showPagado = kind === "ACUERDO";
 
@@ -108,7 +112,10 @@ export function PaymentsHistoryTable({
                           checks,
                         }}
                       />
-                      <DeletePaymentButton paymentId={p.id} />
+                      <DeletePaymentButton
+                        paymentId={p.id}
+                        label={kind === "ABONO" ? "abono" : "acuerdo"}
+                      />
                     </div>
                   </TableCell>
                 </TableRow>

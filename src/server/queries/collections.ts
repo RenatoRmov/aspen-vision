@@ -11,8 +11,22 @@ function withDerived<T extends { totalAmount: number; payments: { amount: number
   const totalPaid = c.payments
     .filter((p) => p.kind === "ABONO")
     .reduce((s, p) => s + p.amount, 0);
-  const saldo = computeSaldo(c.totalAmount, totalPaid);
-  return { ...c, totalPaid, saldo, estado: computeEstado(saldo, c.totalAmount) };
+  // Returned merchandise (Nota de Crédito) lowers what the client actually
+  // owes on this document, same idea as an abono but it isn't money — so it
+  // reduces the *effective* total the saldo/estado math is based on, while
+  // `totalAmount` itself stays the original invoiced amount.
+  const totalCreditNotes = c.payments
+    .filter((p) => p.kind === "NOTA_CREDITO")
+    .reduce((s, p) => s + p.amount, 0);
+  const effectiveTotal = c.totalAmount - totalCreditNotes;
+  const saldo = computeSaldo(effectiveTotal, totalPaid);
+  return {
+    ...c,
+    totalPaid,
+    totalCreditNotes,
+    saldo,
+    estado: computeEstado(saldo, effectiveTotal),
+  };
 }
 
 export type CollectionFilters = {

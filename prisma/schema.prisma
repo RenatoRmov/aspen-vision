@@ -26,6 +26,7 @@ enum Role {
   ADMIN // Full access: catalog, users, all reports, inventory adjustments
   VENDEDOR // Can register sales, view inventory (read-only), view own sales
   PREPARADOR // Confirms pending sales (inventory prep/fulfillment), manages inventory entries
+  CONTADORA // Accounting-only: sees exclusively Cobranzas and Información Cobranzas
 }
 
 enum MovementType {
@@ -57,6 +58,7 @@ enum NotificationType {
 enum CollectionPaymentKind {
   ABONO // Real money received; counts toward saldo/estado
   ACUERDO // Just a promise to pay by a given date; purely informational
+  NOTA_CREDITO // Returned merchandise; reduces the document's effective total and saldo, same as an ABONO but isn't money received
 }
 
 model User {
@@ -304,7 +306,9 @@ model Collection {
 // stored — same append-only-source-of-truth idea as InventoryMovement.
 // ACUERDO rows are purely informational (a client's promise to pay by a
 // given date) and are excluded from that saldo math entirely — only ABONO
-// rows count as real money received.
+// rows count as real money received. NOTA_CREDITO rows aren't money either,
+// but they do reduce the document's effective total (and therefore saldo),
+// since returned merchandise lowers what the client actually owes.
 model CollectionPayment {
   id           String                @id @default(cuid())
   collectionId String
@@ -319,6 +323,10 @@ model CollectionPayment {
   // (recomputed as the sum of these when present), this is just the
   // itemized detail for display.
   checks       Json?
+  // Only populated when kind is NOTA_CREDITO: the returned models, like
+  // [{ modelo: "RB2140", cantidad: 2, valorUnitario: 45000 }, ...].
+  // `amount` above is always the sum of cantidad*valorUnitario over these.
+  creditItems  Json?
   note         String?
   createdById  String
   createdBy    User                  @relation(fields: [createdById], references: [id])

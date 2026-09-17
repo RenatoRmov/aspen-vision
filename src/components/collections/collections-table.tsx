@@ -23,6 +23,7 @@ export type CollectionRow = {
   netAmount: number;
   taxAmount: number;
   totalAmount: number;
+  totalCreditNotes: number;
   totalPaid: number;
   saldo: number;
   estado: CollectionEstado;
@@ -50,6 +51,7 @@ export function CollectionsTable({ rows }: { rows: CollectionRow[] }) {
             <TableHead className="text-right">Monto Neto</TableHead>
             <TableHead className="text-right">Monto IVA</TableHead>
             <TableHead className="text-right">Monto Total</TableHead>
+            <TableHead className="text-right">Nota Crédito</TableHead>
             <TableHead className="text-right">Total Abonado</TableHead>
             <TableHead className="text-right">Saldo</TableHead>
             <TableHead>Estado</TableHead>
@@ -80,6 +82,9 @@ export function CollectionsTable({ rows }: { rows: CollectionRow[] }) {
               </TableCell>
               <TableCell className="text-right text-sm font-medium tabular-nums">
                 {formatCLP(c.totalAmount)}
+              </TableCell>
+              <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
+                {c.totalCreditNotes > 0 ? `-${formatCLP(c.totalCreditNotes)}` : "—"}
               </TableCell>
               <TableCell className="text-right text-sm tabular-nums">
                 {formatCLP(c.totalPaid)}

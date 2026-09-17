@@ -58,9 +58,35 @@ export function formatCheckLabel(c: CollectionCheck): string {
   return details ? `${c.label} (${details})` : c.label;
 }
 
-export type CollectionPaymentKind = "ABONO" | "ACUERDO";
+export type CollectionPaymentKind = "ABONO" | "ACUERDO" | "NOTA_CREDITO";
 
 export const PAYMENT_KIND_LABEL: Record<CollectionPaymentKind, string> = {
   ABONO: "Abono",
   ACUERDO: "Acuerdo comercial",
+  NOTA_CREDITO: "Nota de crédito",
 };
+
+export type CollectionCreditItem = {
+  modelo: string;
+  cantidad: number;
+  valorUnitario: number;
+};
+
+/** `CollectionPayment.creditItems` is a Prisma Json field, so it comes back as `unknown` at runtime — parse it defensively rather than trusting the stored shape. */
+export function parseCreditItems(value: unknown): CollectionCreditItem[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(
+      (it): it is Record<string, unknown> =>
+        typeof it === "object" &&
+        it !== null &&
+        typeof (it as Record<string, unknown>).modelo === "string" &&
+        typeof (it as Record<string, unknown>).cantidad === "number" &&
+        typeof (it as Record<string, unknown>).valorUnitario === "number",
+    )
+    .map((it) => ({
+      modelo: it.modelo as string,
+      cantidad: it.cantidad as number,
+      valorUnitario: it.valorUnitario as number,
+    }));
+}

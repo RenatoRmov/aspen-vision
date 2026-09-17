@@ -16,6 +16,12 @@ export default auth((req) => {
   if (req.auth && pathname === "/login") {
     return NextResponse.redirect(new URL("/", req.nextUrl.origin));
   }
+
+  // Contadora is accounting-only: she can't see any other tab (Resumen,
+  // Inventario, Ventas, Embajadores, Garantías, Usuarios), only Cobranzas.
+  if (req.auth?.user.role === "CONTADORA" && !pathname.startsWith("/cobranzas")) {
+    return NextResponse.redirect(new URL("/cobranzas", req.nextUrl.origin));
+  }
 });
 
 export const config = {

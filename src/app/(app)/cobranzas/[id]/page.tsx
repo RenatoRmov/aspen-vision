@@ -9,6 +9,9 @@ import { CollectionEstadoBadge } from "@/components/collections/collection-estad
 import { CollectionPaymentForm } from "@/components/collections/collection-payment-form";
 import { CollectionRowActions } from "@/components/collections/collection-row-actions";
 import { PaymentsHistoryTable } from "@/components/collections/payments-history-table";
+import { CreditNoteForm } from "@/components/collections/credit-note-form";
+import { CreditNotesTable } from "@/components/collections/credit-notes-table";
+import { parseCreditItems } from "@/lib/collections";
 
 export default async function CollectionDetailPage({
   params,
@@ -24,6 +27,9 @@ export default async function CollectionDetailPage({
 
   const abonos = collection.payments.filter((p) => p.kind === "ABONO");
   const acuerdos = collection.payments.filter((p) => p.kind === "ACUERDO");
+  const notasCredito = collection.payments
+    .filter((p) => p.kind === "NOTA_CREDITO")
+    .map((p) => ({ ...p, items: parseCreditItems(p.creditItems) }));
 
   return (
     <div className="space-y-6">
@@ -34,6 +40,7 @@ export default async function CollectionDetailPage({
           <div className="flex flex-wrap gap-2">
             <CollectionPaymentForm collectionId={collection.id} saldo={collection.saldo} kind="ABONO" />
             <CollectionPaymentForm collectionId={collection.id} saldo={collection.saldo} kind="ACUERDO" />
+            <CreditNoteForm collectionId={collection.id} />
             <CollectionRowActions collection={collection} redirectAfterDeleteTo="/cobranzas" />
           </div>
         }
@@ -75,6 +82,8 @@ export default async function CollectionDetailPage({
             saldo={collection.saldo}
             kind="ACUERDO"
           />
+
+          <CreditNotesTable collectionId={collection.id} payments={notasCredito} />
         </div>
 
         <div className="space-y-3 rounded-xl border bg-card p-4 text-sm">
@@ -90,6 +99,14 @@ export default async function CollectionDetailPage({
             <span className="text-muted-foreground">Monto Total</span>
             <span className="font-medium tabular-nums">{formatCLP(collection.totalAmount)}</span>
           </div>
+          {collection.totalCreditNotes > 0 && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Nota de Crédito</span>
+              <span className="font-medium tabular-nums">
+                -{formatCLP(collection.totalCreditNotes)}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-muted-foreground">Total Abonado</span>
             <span className="font-medium tabular-nums">{formatCLP(collection.totalPaid)}</span>

@@ -81,7 +81,9 @@ const checkSchema = z.object({
 const paymentSchema = z.object({
   // ABONO = real money received, counts toward saldo. ACUERDO = just a
   // client's promise to pay by `date`, purely informational (see the
-  // CollectionPayment model comment) — same shape either way.
+  // CollectionPayment model comment) — same shape either way. NOTA_CREDITO
+  // has its own shape entirely (see creditNoteSchema below) and never goes
+  // through this schema.
   kind: z.enum(["ABONO", "ACUERDO"]).default("ABONO"),
   date: z.coerce.date(),
   amount: z.coerce.number().int().positive("El monto debe ser mayor a 0"),
@@ -170,6 +172,84 @@ export async function deleteCollectionPayment(paymentId: string) {
     });
   }
   revalidatePath(`/cobranzas/${payment.collectionId}`);
+  revalidatePath("/cobranzas");
+}
+
+const creditItemSchema = z.object({
+  modelo: z.string().trim().min(1, "Indica el modelo"),
+  cantidad: z.coerce.number().int().positive("Cantidad inválida"),
+  valorUnitario: z.coerce.number().int().positive("Valor inválido"),
+});
+
+const creditNoteSchema = z.object({
+  date: z.coerce.date(),
+  note: z.string().trim().optional(),
+  items: z.array(creditItemSchema).min(1, "Agrega al menos un modelo"),
+});
+
+export type CreditNoteInput = z.infer<typeof creditNoteSchema>;
+
+/** A nota de crédito can never credit back more than the document is
+ * actually worth — guards against the effective total going negative. */
+async function assertCreditNoteFits(collectionId: string, amount: number, excludePaymentId?: string) {
+  const collection = await db.collection.findUnique({
+    where: { id: collectionId },
+    include: { payments: { where: { kind: "NOTA_CREDITO" }, select: { id: true, amount: true } } },
+  });
+  if (!collection) throw new Error("La cobranza no existe");
+
+  const existingTotal = collection.payments
+    .filter((p) => p.id !== excludePaymentId)
+    .reduce((s, p) => s + p.amount, 0);
+
+  if (existingTotal + amount > collection.totalAmount) {
+    throw new Error("El total de notas de crédito no puede superar el Monto Total del documento");
+  }
+}
+
+export async function addCreditNote(collectionId: string, input: CreditNoteInput) {
+  const session = await requireCollectionsAccess();
+  const data = creditNoteSchema.parse(input);
+  const amount = data.items.reduce((s, i) => s + i.cantidad * i.valorUnitario, 0);
+  await assertCreditNoteFits(collectionId, amount);
+
+  await db.collectionPayment.create({
+    data: {
+      collectionId,
+      kind: "NOTA_CREDITO",
+      date: data.date,
+      amount,
+      method: "Nota de crédito",
+      creditItems: data.items,
+      note: data.note || null,
+      createdById: session.user.id,
+    },
+  });
+
+  revalidatePath(`/cobranzas/${collectionId}`);
+  revalidatePath("/cobranzas");
+}
+
+export async function updateCreditNote(paymentId: string, input: CreditNoteInput) {
+  await requireCollectionsAccess();
+  const data = creditNoteSchema.parse(input);
+  const amount = data.items.reduce((s, i) => s + i.cantidad * i.valorUnitario, 0);
+
+  const existing = await db.collectionPayment.findUnique({ where: { id: paymentId } });
+  if (!existing) throw new Error("El registro no existe");
+  await assertCreditNoteFits(existing.collectionId, amount, paymentId);
+
+  await db.collectionPayment.update({
+    where: { id: paymentId },
+    data: {
+      date: data.date,
+      amount,
+      creditItems: data.items,
+      note: data.note || null,
+    },
+  });
+
+  revalidatePath(`/cobranzas/${existing.collectionId}`);
   revalidatePath("/cobranzas");
 }
 

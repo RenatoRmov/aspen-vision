@@ -24,6 +24,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { PAYMENT_METHODS, type CollectionPaymentKind } from "@/lib/collections";
+
+/** This form only ever handles Abono/Acuerdo — Nota de Crédito has its own
+ * dedicated form (different fields entirely: line items, no method/checks). */
+type PaymentFormKind = Exclude<CollectionPaymentKind, "NOTA_CREDITO">;
 import { formatCLP } from "@/lib/format";
 import { addCollectionPayment, updateCollectionPayment } from "@/server/actions/collections";
 
@@ -69,7 +73,7 @@ function seedValues(saldo: number, initial?: PaymentEditData): FormValues {
 }
 
 const COPY: Record<
-  CollectionPaymentKind,
+  PaymentFormKind,
   {
     trigger: string;
     icon: typeof CircleDollarSign;
@@ -115,7 +119,7 @@ export function CollectionPaymentForm({
 }: {
   collectionId: string;
   saldo: number;
-  kind?: CollectionPaymentKind;
+  kind?: PaymentFormKind;
   /** When present, edits this payment instead of creating a new one. */
   initial?: PaymentEditData;
 }) {
