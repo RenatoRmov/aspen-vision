@@ -78,6 +78,8 @@ model User {
   warranties           Warranty[]           @relation("WarrantyResponsible")
   notifications        Notification[]
   collectionPayments   CollectionPayment[]
+  assignedCustomers    Customer[]           @relation("CustomerAssignedSeller")
+  customerActivities   CustomerActivity[]   @relation("ActivityCreatedBy")
 
   @@index([role])
 }
@@ -177,6 +179,9 @@ model Sale {
 
 // A buyer (persona o empresa) a quien se le emite la venta. Se identifica por
 // RUT para poder autocompletar razón social en ventas futuras al mismo cliente.
+// Also doubles as the CRM record for the sales team's client-relationship
+// tracking (Clientes/Hoy) — city/contact/commercial-terms fields below are
+// only used there, not by the Ventas flow.
 model Customer {
   id           String   @id @default(cuid())
   name         String
@@ -186,7 +191,57 @@ model Customer {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  sales Sale[]
+  city             String?
+  contactName      String? // Persona de contacto, si difiere del nombre del cliente
+  phone            String?
+  email            String?
+  birthdayMonth    Int? // 1-12 — dos enteros en vez de DateTime para poder
+  birthdayDay      Int? // consultar "cumpleaños hoy" sin importar el año
+  customerSince    DateTime? // Fecha de ingreso real (puede ser anterior al alta en el sistema) — calendario puro, medianoche UTC
+  paymentTermsDays Int? // Condiciones comerciales: días de plazo de pago
+  discountPercent  Float?    @default(0) // Condiciones comerciales: % de descuento acordado
+
+  assignedSellerId String?
+  assignedSeller   User?   @relation("CustomerAssignedSeller", fields: [assignedSellerId], references: [id])
+
+  sales      Sale[]
+  activities CustomerActivity[]
+
+  @@index([assignedSellerId])
+  @@index([birthdayMonth, birthdayDay])
+}
+
+enum CustomerActivityType {
+  VISITA
+  LLAMADA
+  WHATSAPP
+}
+
+enum CustomerActivityStatus {
+  PENDIENTE
+  COMPLETADA
+}
+
+// Seguimiento comercial: a chronological log of visits/calls/WhatsApp
+// contacts with a customer, each optionally carrying a next action + due
+// date. This is a real ledger (source of truth), unlike Estado/Deuda which
+// stay computed at read time from Sale/Collection — see src/lib/customers.ts.
+model CustomerActivity {
+  id             String                 @id @default(cuid())
+  customerId     String
+  customer       Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  date           DateTime // Fecha del contacto — calendario puro, medianoche UTC
+  type           CustomerActivityType
+  summary        String
+  nextAction     String?
+  nextActionDate DateTime? // Calendario puro, medianoche UTC — impulsa "Hoy" y "Próximo contacto"
+  status         CustomerActivityStatus @default(PENDIENTE)
+  createdById    String
+  createdBy      User                   @relation("ActivityCreatedBy", fields: [createdById], references: [id])
+  createdAt      DateTime               @default(now())
+
+  @@index([customerId, date])
+  @@index([status, nextActionDate])
 }
 
 model SaleItem {

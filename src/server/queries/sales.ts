@@ -5,6 +5,7 @@ import type { Prisma } from "@/generated/prisma/client";
 export type SaleFilters = {
   status?: "all" | "pending" | "confirmed";
   sellerId?: string; // restrict to a single seller (used for VENDEDOR role)
+  customerId?: string; // restrict to a single customer (used by the Clientes detail page)
   q?: string;
 };
 
@@ -15,6 +16,7 @@ export async function getSales(filters: SaleFilters) {
   else if (filters.status === "confirmed") where.status = "CONFIRMADA";
 
   if (filters.sellerId) where.sellerId = filters.sellerId;
+  if (filters.customerId) where.customerId = filters.customerId;
 
   if (filters.q) {
     where.OR = [

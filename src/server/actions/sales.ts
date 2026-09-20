@@ -47,20 +47,29 @@ function lineAmounts(quantity: number, unitPrice: number, discountPercent: numbe
 async function findOrCreateCustomer(
   tx: Prisma.TransactionClient,
   input: z.infer<typeof customerSchema>,
+  sellerId: string,
 ) {
   const rut = canonicalRut(input.rut);
   const existing = await tx.customer.findUnique({ where: { rut } });
   if (existing) {
-    if (existing.name !== input.name || existing.businessName !== (input.businessName || null)) {
+    const needsUpdate =
+      existing.name !== input.name ||
+      existing.businessName !== (input.businessName || null) ||
+      existing.assignedSellerId === null; // backfill only — never overwrite an existing assignment
+    if (needsUpdate) {
       return tx.customer.update({
         where: { id: existing.id },
-        data: { name: input.name, businessName: input.businessName || existing.businessName },
+        data: {
+          name: input.name,
+          businessName: input.businessName || existing.businessName,
+          assignedSellerId: existing.assignedSellerId ?? sellerId,
+        },
       });
     }
     return existing;
   }
   return tx.customer.create({
-    data: { name: input.name, rut, businessName: input.businessName || null },
+    data: { name: input.name, rut, businessName: input.businessName || null, assignedSellerId: sellerId },
   });
 }
 
@@ -79,7 +88,7 @@ export async function createSale(input: SaleFormValues) {
     const code = await nextSequentialCode(tx, "sale", "V");
     const now = new Date();
 
-    const customer = data.customer ? await findOrCreateCustomer(tx, data.customer) : null;
+    const customer = data.customer ? await findOrCreateCustomer(tx, data.customer, sellerId) : null;
 
     const sale = await tx.sale.create({
       data: {
@@ -170,7 +179,9 @@ export async function updateSale(saleId: string, input: SaleFormValues) {
     });
     if (sale.cancelledAt) throw new Error("No se puede editar una venta cancelada.");
 
-    const customer = data.customer ? await findOrCreateCustomer(tx, data.customer) : null;
+    const customer = data.customer
+      ? await findOrCreateCustomer(tx, data.customer, sale.sellerId)
+      : null;
 
     if (sale.inventoryApplied) {
       for (const item of sale.items) {

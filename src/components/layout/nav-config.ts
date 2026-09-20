@@ -1,9 +1,11 @@
 import type { Role } from "@/generated/prisma/enums";
 import {
   LayoutDashboard,
+  ListChecks,
   Glasses,
   ShoppingBag,
   Users,
+  Contact,
   ShieldCheck,
   UserCog,
   Wallet,
@@ -25,8 +27,10 @@ const OPERATIONAL_ROLES: Role[] = ["ADMIN", "VENDEDOR", "PREPARADOR"];
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Resumen", icon: LayoutDashboard, roles: OPERATIONAL_ROLES },
+  { href: "/hoy", label: "Hoy", icon: ListChecks, roles: OPERATIONAL_ROLES },
   { href: "/inventario", label: "Inventario", icon: Glasses, roles: OPERATIONAL_ROLES },
   { href: "/ventas", label: "Ventas", icon: ShoppingBag, roles: OPERATIONAL_ROLES },
+  { href: "/clientes", label: "Clientes", icon: Contact, roles: OPERATIONAL_ROLES },
   { href: "/embajadores", label: "Embajadores", icon: Users, roles: OPERATIONAL_ROLES },
   { href: "/garantias", label: "Garantías", icon: ShieldCheck, roles: OPERATIONAL_ROLES },
   {

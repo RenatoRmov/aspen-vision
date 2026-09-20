@@ -17,6 +17,8 @@ const CAPABILITIES = {
   "users:manage": ["ADMIN"],
   "reports:view": ["ADMIN", "PREPARADOR"],
   "collections:manage": ["ADMIN", "PREPARADOR", "CONTADORA"],
+  "customers:manage": ["ADMIN", "VENDEDOR", "PREPARADOR"], // view + create/edit clients, log seguimiento
+  "customers:view-all": ["ADMIN", "PREPARADOR"], // vendedor only sees/acts on clients assigned to them
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Capability = keyof typeof CAPABILITIES;
