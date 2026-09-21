@@ -27,7 +27,6 @@ const customerSchema = z.object({
 
 const saleSchema = z.object({
   items: z.array(saleItemSchema).min(1, "Agrega al menos un producto"),
-  requiresConfirmation: z.boolean(),
   customer: customerSchema.optional(),
   paymentMethod: z.string().trim().optional(),
   notes: z.string().trim().optional(),
@@ -86,7 +85,6 @@ export async function createSale(input: SaleFormValues) {
 
   const saleId = await db.$transaction(async (tx) => {
     const code = await nextSequentialCode(tx, "sale", "V");
-    const now = new Date();
 
     const customer = data.customer ? await findOrCreateCustomer(tx, data.customer, sellerId) : null;
 
@@ -94,11 +92,9 @@ export async function createSale(input: SaleFormValues) {
       data: {
         code,
         sellerId,
-        requiresConfirmation: data.requiresConfirmation,
-        status: data.requiresConfirmation ? "PENDIENTE_CONFIRMACION" : "CONFIRMADA",
-        inventoryApplied: !data.requiresConfirmation,
-        confirmedById: data.requiresConfirmation ? null : sellerId,
-        confirmedAt: data.requiresConfirmation ? null : now,
+        // Every sale always needs preparador confirmation before inventory
+        // is discounted — see confirmSale.
+        status: "PENDIENTE_CONFIRMACION",
         customerId: customer?.id,
         paymentMethod: data.paymentMethod || null,
         notes: data.notes || null,
@@ -119,29 +115,16 @@ export async function createSale(input: SaleFormValues) {
       },
     });
 
-    if (!data.requiresConfirmation) {
-      for (const item of data.items) {
-        await recordInventoryMovement(tx, {
-          productId: item.productId,
-          type: "VENTA",
-          quantity: -item.quantity,
-          reference: `Venta ${sale.code}`,
-          saleId: sale.id,
-          userId: session.user.id,
-        });
-      }
-    } else {
-      await tx.notification.create({
-        data: {
-          type: "VENTA_PENDIENTE",
-          title: "Nueva venta pendiente de confirmación",
-          message: `${sale.code} fue registrada y espera preparación/confirmación.`,
-          link: `/ventas/${sale.id}`,
-          targetRole: "PREPARADOR",
-          saleId: sale.id,
-        },
-      });
-    }
+    await tx.notification.create({
+      data: {
+        type: "VENTA_PENDIENTE",
+        title: "Nueva venta pendiente de confirmación",
+        message: `${sale.code} fue registrada y espera preparación/confirmación.`,
+        link: `/ventas/${sale.id}`,
+        targetRole: "PREPARADOR",
+        saleId: sale.id,
+      },
+    });
 
     return sale.id;
   });

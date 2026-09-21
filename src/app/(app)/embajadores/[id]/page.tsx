@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { AtSign, Music2, Mail, Phone } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/permissions";
@@ -22,12 +22,15 @@ export default async function AmbassadorDetailPage({
   params,
 }: PageProps<"/embajadores/[id]">) {
   const { id } = await params;
+  const session = await auth();
+  if (!session || !can(session.user.role, "ambassadors:manage")) {
+    redirect("/hoy");
+  }
+
   const data = await getAmbassadorWithHistory(id);
   if (!data) notFound();
   const { ambassador, totalUnits } = data;
-
-  const session = await auth();
-  const canManage = session ? can(session.user.role, "ambassadors:manage") : false;
+  const canManage = true;
 
   return (
     <div className="space-y-6">

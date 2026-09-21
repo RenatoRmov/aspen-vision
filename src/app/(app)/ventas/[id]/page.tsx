@@ -71,12 +71,6 @@ export default async function SaleDetailPage({
 
       <div className="flex flex-wrap items-center gap-3">
         <SaleStatusBadge status={sale.status} cancelled={!!sale.cancelledAt} />
-        {sale.requiresConfirmation && (
-          <span className="text-xs text-muted-foreground">
-            Esta venta requería confirmación interna antes de descontar
-            inventario.
-          </span>
-        )}
       </div>
 
       {sale.cancelledAt && (

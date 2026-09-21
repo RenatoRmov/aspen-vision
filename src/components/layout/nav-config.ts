@@ -24,15 +24,18 @@ export type NavItem = {
 // PREPARADOR) the accounting-only Cobranzas view granted below. CONTADORA is
 // deliberately excluded: she only sees Cobranzas and Información Cobranzas.
 const OPERATIONAL_ROLES: Role[] = ["ADMIN", "VENDEDOR", "PREPARADOR"];
+// Management-only areas: VENDEDOR doesn't get Resumen, Embajadores, or
+// Garantías — their day-to-day tools are Hoy/Ventas/Clientes.
+const MANAGEMENT_ROLES: Role[] = ["ADMIN", "PREPARADOR"];
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Resumen", icon: LayoutDashboard, roles: OPERATIONAL_ROLES },
+  { href: "/", label: "Resumen", icon: LayoutDashboard, roles: MANAGEMENT_ROLES },
   { href: "/hoy", label: "Hoy", icon: ListChecks, roles: OPERATIONAL_ROLES },
   { href: "/inventario", label: "Inventario", icon: Glasses, roles: OPERATIONAL_ROLES },
   { href: "/ventas", label: "Ventas", icon: ShoppingBag, roles: OPERATIONAL_ROLES },
   { href: "/clientes", label: "Clientes", icon: Contact, roles: OPERATIONAL_ROLES },
-  { href: "/embajadores", label: "Embajadores", icon: Users, roles: OPERATIONAL_ROLES },
-  { href: "/garantias", label: "Garantías", icon: ShieldCheck, roles: OPERATIONAL_ROLES },
+  { href: "/embajadores", label: "Embajadores", icon: Users, roles: MANAGEMENT_ROLES },
+  { href: "/garantias", label: "Garantías", icon: ShieldCheck, roles: MANAGEMENT_ROLES },
   {
     href: "/cobranzas",
     label: "Cobranzas",

@@ -3,12 +3,11 @@
 import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Trash2, AlertTriangle, ChevronUp, ChevronDown, StickyNote } from "lucide-react";
+import { Loader2, Trash2, ChevronUp, ChevronDown, StickyNote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -70,7 +69,6 @@ export function SaleForm({
   const router = useRouter();
   const isEdit = !!initialSale;
   const [lines, setLines] = useState<Line[]>(initialSale?.items ?? []);
-  const [requiresConfirmation, setRequiresConfirmation] = useState(true);
   const [customer, setCustomer] = useState<CustomerValue>(
     initialSale?.customer ?? { name: "", rut: "", businessName: "" },
   );
@@ -146,17 +144,9 @@ export function SaleForm({
   const totalUnits = computed.reduce((s, l) => s + l.quantity, 0);
   const totalDiscount = computed.reduce((s, l) => s + l.discountAmount, 0);
 
-  const insufficientStock = lines.some(
-    (l) => !isEdit && !requiresConfirmation && l.quantity > l.stock,
-  );
-
   const onSubmit = async () => {
     if (lines.length === 0) {
       toast.error("Agrega al menos un producto a la venta");
-      return;
-    }
-    if (insufficientStock) {
-      toast.error("Hay productos sin stock suficiente para descuento inmediato");
       return;
     }
     if (customer.rut && !customer.name) {
@@ -174,7 +164,6 @@ export function SaleForm({
           discountPercent: l.discountPercent,
           notes: l.notes || undefined,
         })),
-        requiresConfirmation,
         customer: customer.rut ? customer : undefined,
         paymentMethod,
         notes,
@@ -260,12 +249,6 @@ export function SaleForm({
                         <p className="text-xs leading-tight text-muted-foreground">
                           {l.brand} {l.model}
                         </p>
-                        {!isEdit && !requiresConfirmation && l.quantity > l.stock && (
-                          <p className="mt-0.5 flex items-center gap-1 text-xs text-status-critical">
-                            <AlertTriangle className="h-3 w-3" />
-                            Solo hay {l.stock} en stock
-                          </p>
-                        )}
                       </TableCell>
                       <TableCell>
                         <Input
@@ -388,25 +371,9 @@ export function SaleForm({
 
       <div className="space-y-4">
         {!isEdit && (
-          <div className="space-y-3 rounded-xl border bg-card p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium">
-                  {requiresConfirmation
-                    ? "Requiere confirmación"
-                    : "Descuenta inventario ahora"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {requiresConfirmation
-                    ? "La venta queda registrada de inmediato, pero el stock solo se descuenta cuando un preparador confirme el pedido."
-                    : "El stock se descuenta apenas registres esta venta."}
-                </p>
-              </div>
-              <Switch
-                checked={requiresConfirmation}
-                onCheckedChange={setRequiresConfirmation}
-              />
-            </div>
+          <div className="rounded-xl border border-dashed bg-muted/30 p-4 text-xs text-muted-foreground">
+            La venta queda registrada de inmediato, pero el stock solo se descuenta
+            cuando un preparador confirme el pedido.
           </div>
         )}
 

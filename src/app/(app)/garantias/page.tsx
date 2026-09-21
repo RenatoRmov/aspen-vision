@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { redirect } from "next/navigation";
 import { Plus } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/permissions";
@@ -24,7 +25,10 @@ export default async function WarrantiesPage({
 }: PageProps<"/garantias">) {
   const sp = await searchParams;
   const session = await auth();
-  const canManage = session ? can(session.user.role, "warranties:manage") : false;
+  if (!session || !can(session.user.role, "warranties:manage")) {
+    redirect("/hoy");
+  }
+  const canManage = true;
 
   const filters: WarrantyFilters = {
     status: (typeof sp.status === "string" ? sp.status : "all") as WarrantyFilters["status"],

@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import {
   DollarSign,
   Glasses,
@@ -8,6 +9,8 @@ import {
   ShieldCheck,
   Clock,
 } from "lucide-react";
+import { auth } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 import { resolveRange } from "@/lib/date-range";
 import { getDashboardData } from "@/server/queries/dashboard";
 import { formatCLP, formatNumber } from "@/lib/format";
@@ -29,6 +32,11 @@ import { LeastSoldChart } from "@/components/dashboard/least-sold-chart";
 export default async function ResumenPage({
   searchParams,
 }: PageProps<"/">) {
+  const session = await auth();
+  if (!session || !can(session.user.role, "reports:view")) {
+    redirect("/hoy");
+  }
+
   const sp = await searchParams;
   const rangeParam = typeof sp.range === "string" ? sp.range : undefined;
   const fromParam = typeof sp.from === "string" ? sp.from : undefined;

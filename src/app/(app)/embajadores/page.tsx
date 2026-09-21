@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Plus, AtSign, Gift } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/permissions";
@@ -9,7 +10,10 @@ import { Button } from "@/components/ui/button";
 
 export default async function AmbassadorsPage() {
   const session = await auth();
-  const canManage = session ? can(session.user.role, "ambassadors:manage") : false;
+  if (!session || !can(session.user.role, "ambassadors:manage")) {
+    redirect("/hoy");
+  }
+  const canManage = true;
   const ambassadors = await getAmbassadors();
 
   return (

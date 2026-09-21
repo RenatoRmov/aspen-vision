@@ -15,7 +15,7 @@ export default async function NewSalePage() {
     <div className="space-y-6">
       <PageHeader
         title="Nueva venta"
-        description="Registra los productos vendidos y cómo debe impactar el inventario"
+        description="Registra los productos vendidos — un preparador confirma antes de descontar inventario"
       />
       <SaleForm
         sellers={sellers}
