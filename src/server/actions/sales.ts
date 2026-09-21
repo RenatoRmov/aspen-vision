@@ -80,6 +80,9 @@ export async function createSale(input: SaleFormValues) {
   }
 
   const data = saleSchema.parse(input);
+  // Enforced again here, not just in the form's step-gating UI — every sale
+  // must be tied to an identified customer now.
+  if (!data.customer) throw new Error("Selecciona un cliente para registrar la venta");
   const sellerId =
     session.user.role === "ADMIN" && data.sellerId ? data.sellerId : session.user.id;
 

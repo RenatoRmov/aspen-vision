@@ -43,15 +43,11 @@ export function CollectionsTable({ rows }: { rows: CollectionRow[] }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Ciudad</TableHead>
-            <TableHead>Rut Cliente</TableHead>
-            <TableHead>Razón Social</TableHead>
+            <TableHead>Cliente</TableHead>
             <TableHead>Folio</TableHead>
             <TableHead>Fecha Docto</TableHead>
-            <TableHead className="text-right">Monto Neto</TableHead>
-            <TableHead className="text-right">Monto IVA</TableHead>
+            <TableHead className="text-right">Neto / IVA</TableHead>
             <TableHead className="text-right">Monto Total</TableHead>
-            <TableHead className="text-right">Nota Crédito</TableHead>
             <TableHead className="text-right">Total Abonado</TableHead>
             <TableHead className="text-right">Saldo</TableHead>
             <TableHead>Estado</TableHead>
@@ -61,10 +57,14 @@ export function CollectionsTable({ rows }: { rows: CollectionRow[] }) {
         <TableBody>
           {rows.map((c) => (
             <TableRow key={c.id}>
-              <TableCell className="text-sm">{c.city || "—"}</TableCell>
-              <TableCell className="text-sm whitespace-nowrap">{formatRut(c.clientRut)}</TableCell>
-              <TableCell className="max-w-56 truncate text-sm" title={c.businessName}>
-                {c.businessName}
+              <TableCell className="max-w-64">
+                <p className="truncate text-sm font-medium" title={c.businessName}>
+                  {c.businessName}
+                </p>
+                <p className="text-xs whitespace-nowrap text-muted-foreground">
+                  {formatRut(c.clientRut)}
+                  {c.city ? ` · ${c.city}` : ""}
+                </p>
               </TableCell>
               <TableCell>
                 <Link href={`/cobranzas/${c.id}`} className="font-medium hover:underline">
@@ -75,16 +75,16 @@ export function CollectionsTable({ rows }: { rows: CollectionRow[] }) {
                 {formatDateOnly(c.documentDate)}
               </TableCell>
               <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
-                {formatCLP(c.netAmount)}
-              </TableCell>
-              <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
-                {formatCLP(c.taxAmount)}
+                <p>{formatCLP(c.netAmount)}</p>
+                <p className="text-xs">{formatCLP(c.taxAmount)}</p>
               </TableCell>
               <TableCell className="text-right text-sm font-medium tabular-nums">
-                {formatCLP(c.totalAmount)}
-              </TableCell>
-              <TableCell className="text-right text-sm tabular-nums text-muted-foreground">
-                {c.totalCreditNotes > 0 ? `-${formatCLP(c.totalCreditNotes)}` : "—"}
+                <p>{formatCLP(c.totalAmount)}</p>
+                {c.totalCreditNotes > 0 && (
+                  <p className="text-xs font-normal text-muted-foreground">
+                    N. Créd. -{formatCLP(c.totalCreditNotes)}
+                  </p>
+                )}
               </TableCell>
               <TableCell className="text-right text-sm tabular-nums">
                 {formatCLP(c.totalPaid)}

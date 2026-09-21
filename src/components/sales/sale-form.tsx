@@ -3,7 +3,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Trash2, ChevronUp, ChevronDown, StickyNote } from "lucide-react";
+import { Loader2, Trash2, ChevronUp, ChevronDown, StickyNote, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,8 @@ import { ProductPicker, type PickedProduct } from "@/components/shared/product-p
 import { CustomerPicker, type CustomerValue } from "@/components/sales/customer-picker";
 import { primaryImage } from "@/lib/product-images";
 import { formatCLP } from "@/lib/format";
+import { formatRut, isValidRut } from "@/lib/rut";
+import { cn } from "@/lib/utils";
 import { createSale, updateSale } from "@/server/actions/sales";
 
 const IVA_RATE = 0.19;
@@ -72,6 +74,16 @@ export function SaleForm({
   const [customer, setCustomer] = useState<CustomerValue>(
     initialSale?.customer ?? { name: "", rut: "", businessName: "" },
   );
+  // New sales require an identified customer before products can be added —
+  // editing an existing sale never re-gates this (its customer is already set).
+  const [customerLocked, setCustomerLocked] = useState(isEdit);
+  // Checksum-validate the RUT only for a brand-new customer (catches a typo
+  // before it becomes a permanent record) — an already-matched existing
+  // customer is trusted as-is, since some real historical records predate
+  // that validation and shouldn't get blocked from selling to them again.
+  const customerReady =
+    customer.name.trim() !== "" &&
+    (customer.id ? customer.rut.trim() !== "" : isValidRut(customer.rut));
   const [paymentMethod, setPaymentMethod] = useState<string>(
     initialSale?.paymentMethod || "Efectivo",
   );
@@ -145,6 +157,10 @@ export function SaleForm({
   const totalDiscount = computed.reduce((s, l) => s + l.discountAmount, 0);
 
   const onSubmit = async () => {
+    if (!isEdit && !customerReady) {
+      toast.error("Selecciona o registra un cliente antes de continuar");
+      return;
+    }
     if (lines.length === 0) {
       toast.error("Agrega al menos un producto a la venta");
       return;
@@ -190,6 +206,32 @@ export function SaleForm({
       setSubmitting(false);
     }
   };
+
+  if (!isEdit && !customerLocked) {
+    return (
+      <div className="mx-auto max-w-md space-y-1">
+        <div className="rounded-xl border bg-card p-6">
+          <h2 className="text-lg font-semibold">¿Quién es el cliente?</h2>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Busca por RUT o nombre para autocompletar un cliente ya registrado. Si es
+            nuevo, complétalo aquí — se registrará junto con la venta.
+          </p>
+          <CustomerPicker value={customer} onChange={setCustomer} />
+          {!customer.id && customer.rut && !isValidRut(customer.rut) && (
+            <p className="mt-2 text-xs text-status-critical">RUT inválido</p>
+          )}
+          <Button
+            type="button"
+            className="mt-4 w-full"
+            disabled={!customerReady}
+            onClick={() => setCustomerLocked(true)}
+          >
+            Continuar
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -408,7 +450,40 @@ export function SaleForm({
         )}
 
         <div className="rounded-xl border bg-card p-4">
-          <CustomerPicker value={customer} onChange={setCustomer} />
+          {!isEdit ? (
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="truncate font-medium">{customer.name}</p>
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap",
+                      customer.id
+                        ? "bg-status-good/10 text-status-good"
+                        : "bg-primary/10 text-primary",
+                    )}
+                  >
+                    {customer.id ? "Cliente existente" : "Cliente nuevo"}
+                  </span>
+                </div>
+                <p className="truncate text-xs text-muted-foreground">
+                  {formatRut(customer.rut)}
+                  {customer.businessName ? ` · ${customer.businessName}` : ""}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setCustomerLocked(false)}
+                title="Cambiar cliente"
+              >
+                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            </div>
+          ) : (
+            <CustomerPicker value={customer} onChange={setCustomer} />
+          )}
         </div>
 
         <div className="space-y-3 rounded-xl border bg-card p-4">

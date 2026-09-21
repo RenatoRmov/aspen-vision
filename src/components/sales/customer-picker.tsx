@@ -10,6 +10,9 @@ export type CustomerValue = {
   name: string;
   rut: string;
   businessName: string;
+  /** Set only when this value came from picking an existing match — cleared
+   * as soon as rut/name is hand-edited, so it never lies about a stale match. */
+  id?: string;
 };
 
 type CustomerMatch = { id: string; name: string; rut: string; businessName: string | null };
@@ -62,7 +65,7 @@ export function CustomerPicker({
   }, [value.rut]);
 
   const pick = (c: CustomerMatch) => {
-    onChange({ name: c.name, rut: c.rut, businessName: c.businessName ?? "" });
+    onChange({ name: c.name, rut: c.rut, businessName: c.businessName ?? "", id: c.id });
     setOpen(false);
   };
 
@@ -75,7 +78,7 @@ export function CustomerPicker({
           value={value.rut}
           onFocus={() => setOpen(true)}
           onChange={(e) => {
-            onChange({ ...value, rut: e.target.value });
+            onChange({ ...value, rut: e.target.value, id: undefined });
             setOpen(true);
           }}
           onBlur={() => {
@@ -120,7 +123,7 @@ export function CustomerPicker({
         <Input
           id="customer-name"
           value={value.name}
-          onChange={(e) => onChange({ ...value, name: e.target.value })}
+          onChange={(e) => onChange({ ...value, name: e.target.value, id: undefined })}
           placeholder="Nombre completo"
         />
       </div>

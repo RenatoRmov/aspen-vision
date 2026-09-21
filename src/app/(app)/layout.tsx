@@ -25,7 +25,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           notifications={notifications}
         />
         <main className="flex-1 overflow-y-auto bg-background px-4 py-6 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-7xl space-y-6">{children}</div>
+          <div className="mx-auto max-w-[100rem] space-y-6">{children}</div>
         </main>
       </div>
     </div>
