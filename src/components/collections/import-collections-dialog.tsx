@@ -137,7 +137,7 @@ export function ImportCollectionsDialog() {
     <>
       <Button variant="outline" onClick={() => setOpen(true)}>
         <FileUp className="h-4 w-4" />
-        Importar Excel
+        Importar SII
       </Button>
 
       <Dialog
@@ -149,11 +149,13 @@ export function ImportCollectionsDialog() {
       >
         <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Importar Excel del SII</DialogTitle>
+            <DialogTitle>Importar registro de ventas del SII</DialogTitle>
             <DialogDescription>
-              Sube el registro de ventas exportado desde el SII. Se leen Ciudad, Rut
-              Cliente, Razón Social, Folio, Fecha Docto, Monto Neto, Monto IVA y Monto
-              Total — el resto de las columnas se ignora.
+              Sube el Excel o el CSV del Registro de Compra y Venta exportado desde el
+              SII. Se leen Ciudad, Rut Cliente, Razón Social, Folio, Fecha Docto, Monto
+              Neto, Monto IVA y Monto Total — el resto de las columnas se ignora. Las
+              facturas ya cargadas, y los documentos que no sean Factura Electrónica,
+              aparecen destildadas.
             </DialogDescription>
           </DialogHeader>
 
@@ -162,7 +164,7 @@ export function ImportCollectionsDialog() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".xlsx,.xls"
+                accept=".xlsx,.xls,.csv"
                 className="hidden"
                 onChange={onFileChange}
               />
