@@ -24,6 +24,15 @@ export const ESTADO_LABEL: Record<CollectionEstado, string> = {
   A_FAVOR: "A favor",
 };
 
+const ALL_ESTADOS = Object.keys(ESTADO_LABEL) as CollectionEstado[];
+
+/** The Estado filter is multi-select, encoded in the URL as a comma-separated
+ * list (e.g. "PENDIENTE,PARCIAL") — empty/missing/"all" means no filter. */
+export function parseEstadoParam(raw: string | undefined | null): CollectionEstado[] {
+  if (!raw || raw === "all") return [];
+  return raw.split(",").filter((v): v is CollectionEstado => (ALL_ESTADOS as string[]).includes(v));
+}
+
 export const PAYMENT_METHODS = ["Transferencia", "Efectivo", "Débito", "Crédito", "Cheque", "Otro"];
 
 export type CollectionCheck = {

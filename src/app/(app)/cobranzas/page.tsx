@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getCollections, type CollectionFilters } from "@/server/queries/collections";
+import { parseEstadoParam } from "@/lib/collections";
 import { formatCLP } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
 import { CollectionsTable } from "@/components/collections/collections-table";
@@ -20,7 +21,7 @@ export default async function CobranzasPage({
 
   const sp = await searchParams;
   const filters: CollectionFilters = {
-    estado: (typeof sp.estado === "string" ? sp.estado : "all") as CollectionFilters["estado"],
+    estado: parseEstadoParam(typeof sp.estado === "string" ? sp.estado : undefined),
     clientRut: typeof sp.rut === "string" ? sp.rut : undefined,
     folio: typeof sp.folio === "string" ? sp.folio : undefined,
     from: typeof sp.from === "string" ? sp.from : undefined,

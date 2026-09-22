@@ -3,19 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { ESTADO_LABEL } from "@/lib/collections";
-
-const ESTADO_OPTIONS: Record<string, string> = {
-  all: "Todos los estados",
-  ...ESTADO_LABEL,
-};
+import { EstadoMultiSelect } from "@/components/collections/estado-multi-select";
+import { parseEstadoParam, type CollectionEstado } from "@/lib/collections";
 
 export function CollectionsFilters({ showFolio = true }: { showFolio?: boolean }) {
   const router = useRouter();
@@ -66,24 +55,14 @@ export function CollectionsFilters({ showFolio = true }: { showFolio?: boolean }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [to]);
 
+  const estado = parseEstadoParam(searchParams.get("estado"));
+  const setEstado = (next: CollectionEstado[]) => {
+    update("estado", next.length > 0 ? next.join(",") : null);
+  };
+
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-      <Select
-        items={ESTADO_OPTIONS}
-        value={searchParams.get("estado") ?? "all"}
-        onValueChange={(v) => update("estado", v === "all" ? null : (v ?? null))}
-      >
-        <SelectTrigger className="w-full sm:w-44">
-          <SelectValue placeholder="Estado" />
-        </SelectTrigger>
-        <SelectContent>
-          {Object.entries(ESTADO_OPTIONS).map(([value, label]) => (
-            <SelectItem key={value} value={value}>
-              {label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <EstadoMultiSelect value={estado} onChange={setEstado} />
 
       <Input
         placeholder="Rut cliente"

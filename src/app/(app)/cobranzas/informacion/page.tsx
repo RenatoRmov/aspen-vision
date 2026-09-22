@@ -3,6 +3,7 @@ import { DollarSign, FileText, Clock, CheckCircle2 } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { getCollectionsInfo, type CollectionFilters } from "@/server/queries/collections";
+import { parseEstadoParam } from "@/lib/collections";
 import { formatCLP, formatNumber } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
@@ -22,7 +23,7 @@ export default async function InformacionCobranzasPage({
 
   const sp = await searchParams;
   const filters: CollectionFilters = {
-    estado: (typeof sp.estado === "string" ? sp.estado : "all") as CollectionFilters["estado"],
+    estado: parseEstadoParam(typeof sp.estado === "string" ? sp.estado : undefined),
     clientRut: typeof sp.rut === "string" ? sp.rut : undefined,
     from: typeof sp.from === "string" ? sp.from : undefined,
     to: typeof sp.to === "string" ? sp.to : undefined,

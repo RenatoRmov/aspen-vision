@@ -125,7 +125,7 @@ export function ClientFormDialog({
           <DialogTitle>{isEdit ? "Editar cliente" : "Nuevo cliente"}</DialogTitle>
           <DialogDescription>
             {isEdit
-              ? "Actualiza los datos de contacto y condiciones comerciales."
+              ? "Actualiza los datos de contacto del cliente."
               : "Agrega una óptica a tu cartera de clientes."}
           </DialogDescription>
         </DialogHeader>
@@ -187,22 +187,6 @@ export function ClientFormDialog({
             <div className="space-y-2">
               <Label htmlFor="client-since">Fecha de ingreso</Label>
               <Input id="client-since" type="date" {...register("customerSince")} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="client-terms">Días de plazo</Label>
-              <Input id="client-terms" type="number" min={0} placeholder="Ej. 30" {...register("paymentTermsDays")} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="client-discount">% Descuento acordado</Label>
-              <Input
-                id="client-discount"
-                type="number"
-                min={0}
-                max={100}
-                {...register("discountPercent", { valueAsNumber: true })}
-              />
             </div>
           </div>
           {canAssignSeller && (

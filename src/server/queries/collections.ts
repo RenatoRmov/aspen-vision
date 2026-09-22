@@ -30,7 +30,8 @@ function withDerived<T extends { totalAmount: number; payments: { amount: number
 }
 
 export type CollectionFilters = {
-  estado?: CollectionEstado | "all";
+  /** Multi-select — empty/undefined means no filter (show every estado). */
+  estado?: CollectionEstado[];
   clientRut?: string;
   folio?: string;
   from?: string; // yyyy-mm-dd
@@ -61,8 +62,9 @@ export async function getCollections(filters: CollectionFilters = {}) {
   });
   const withEstado = rows.map(withDerived);
 
-  if (filters.estado && filters.estado !== "all") {
-    return withEstado.filter((c) => c.estado === filters.estado);
+  if (filters.estado && filters.estado.length > 0) {
+    const estados = filters.estado;
+    return withEstado.filter((c) => estados.includes(c.estado));
   }
   return withEstado;
 }
@@ -76,8 +78,9 @@ export async function getCollectionsInfo(filters: CollectionFilters = {}) {
     include: { payments: { select: { amount: true, date: true, kind: true } } },
   });
   let withEstado = rows.map(withDerived);
-  if (filters.estado && filters.estado !== "all") {
-    withEstado = withEstado.filter((c) => c.estado === filters.estado);
+  if (filters.estado && filters.estado.length > 0) {
+    const estados = filters.estado;
+    withEstado = withEstado.filter((c) => estados.includes(c.estado));
   }
 
   const totalDocuments = withEstado.length;

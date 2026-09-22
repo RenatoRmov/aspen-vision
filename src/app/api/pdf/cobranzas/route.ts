@@ -10,7 +10,7 @@ import {
   type StatementClient,
 } from "@/lib/pdf/collection-statement-document";
 import { formatRut } from "@/lib/rut";
-import { parseCreditItems } from "@/lib/collections";
+import { parseCreditItems, parseEstadoParam } from "@/lib/collections";
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const filters: CollectionFilters = {
-    estado: (searchParams.get("estado") ?? "all") as CollectionFilters["estado"],
+    estado: parseEstadoParam(searchParams.get("estado")),
     clientRut: searchParams.get("rut") ?? undefined,
     folio: searchParams.get("folio") ?? undefined,
     from: searchParams.get("from") ?? undefined,
