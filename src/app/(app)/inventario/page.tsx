@@ -13,6 +13,7 @@ import { ProductFilters as Filters } from "@/components/inventory/product-filter
 import { ProductTable } from "@/components/inventory/product-table";
 import { CategoryRail } from "@/components/inventory/category-rail";
 import { InventoryExportMenu } from "@/components/inventory/inventory-export-menu";
+import { ImportProductsDialog } from "@/components/inventory/import-products-dialog";
 
 export default async function InventoryPage({
   searchParams,
@@ -41,6 +42,7 @@ export default async function InventoryPage({
         actions={
           <div className="flex flex-wrap gap-2">
             <InventoryExportMenu />
+            {canManage && <ImportProductsDialog />}
             {canManage && (
               <Button render={<Link href="/inventario/nuevo" />} nativeButton={false}>
                 <Plus className="h-4 w-4" />
