@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
+import { getProducts, type ProductFilters } from "@/server/queries/products";
 import { formatDate } from "@/lib/format";
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -14,10 +14,15 @@ export async function GET() {
     return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
   }
 
-  const products = await db.product.findMany({
-    orderBy: [{ category: { name: "asc" } }, { name: "asc" }],
-    include: { category: true },
-  });
+  const { searchParams } = new URL(request.url);
+  const filters: ProductFilters = {
+    q: searchParams.get("q") ?? undefined,
+    categorySlug: searchParams.get("cat") ?? undefined,
+    availability: (searchParams.get("disp") ?? "all") as ProductFilters["availability"],
+    sort: (searchParams.get("sort") ?? "recent") as ProductFilters["sort"],
+  };
+
+  const products = await getProducts(filters);
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Aspen Vision";
