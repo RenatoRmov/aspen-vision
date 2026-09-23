@@ -7,6 +7,7 @@ import { getAmbassadorWithHistory } from "@/server/queries/ambassadors";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
 import { DeliveryDialog } from "@/components/ambassadors/delivery-dialog";
+import { DeleteAmbassadorButton } from "@/components/ambassadors/delete-ambassador-button";
 import { PrintPdfButton } from "@/components/shared/print-pdf-button";
 import { primaryImage } from "@/lib/product-images";
 import {
@@ -31,13 +32,25 @@ export default async function AmbassadorDetailPage({
   if (!data) notFound();
   const { ambassador, totalUnits } = data;
   const canManage = true;
+  const canDelete = can(session.user.role, "ambassadors:delete");
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={ambassador.name}
         description={`${formatNumber(totalUnits)} lente(s) entregados en total`}
-        actions={canManage ? <DeliveryDialog ambassadorId={ambassador.id} /> : undefined}
+        actions={
+          <div className="flex gap-2">
+            {canManage && <DeliveryDialog ambassadorId={ambassador.id} />}
+            {canDelete && (
+              <DeleteAmbassadorButton
+                ambassadorId={ambassador.id}
+                name={ambassador.name}
+                deliveryCount={ambassador.deliveries.length}
+              />
+            )}
+          </div>
+        }
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

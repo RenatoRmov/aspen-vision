@@ -276,6 +276,47 @@ export async function confirmSale(saleId: string) {
   revalidatePath("/");
 }
 
+/**
+ * Hard-deletes a sale outright (e.g. a duplicate or test entry) — distinct
+ * from cancelSale, which keeps the sale visible with a cancellation reason.
+ * If inventory was already applied, it's reversed first via the same AJUSTE
+ * mechanism as cancelSale, so deleting a confirmed sale never leaves stock
+ * silently short. SaleItems cascade with the sale; any InventoryMovement /
+ * Notification rows that referenced it keep existing with saleId cleared.
+ */
+export async function deleteSale(saleId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("No autorizado");
+  if (!can(session.user.role, "sales:delete")) {
+    throw new Error("No tienes permisos para eliminar ventas");
+  }
+
+  await db.$transaction(async (tx) => {
+    const sale = await tx.sale.findUniqueOrThrow({
+      where: { id: saleId },
+      include: { items: true },
+    });
+
+    if (sale.inventoryApplied) {
+      for (const item of sale.items) {
+        await recordInventoryMovement(tx, {
+          productId: item.productId,
+          type: "AJUSTE",
+          quantity: item.quantity,
+          reason: `Reverso por eliminación de ${sale.code}`,
+          reference: `Eliminación ${sale.code}`,
+          userId: session.user.id,
+        });
+      }
+    }
+
+    await tx.sale.delete({ where: { id: saleId } });
+  });
+
+  revalidatePath("/ventas");
+  revalidatePath("/");
+}
+
 export async function cancelSale(saleId: string, reason: string) {
   const session = await auth();
   if (!session?.user) throw new Error("No autorizado");

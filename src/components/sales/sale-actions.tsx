@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, Trash2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,7 +23,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { confirmSale, cancelSale } from "@/server/actions/sales";
+import { confirmSale, cancelSale, deleteSale } from "@/server/actions/sales";
 
 export function ConfirmSaleButton({ saleId }: { saleId: string }) {
   const router = useRouter();
@@ -127,5 +127,52 @@ export function CancelSaleButton({ saleId }: { saleId: string }) {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+export function DeleteSaleButton({ saleId }: { saleId: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const onDelete = async () => {
+    setLoading(true);
+    try {
+      await deleteSale(saleId);
+      toast.success("Venta eliminada");
+      setOpen(false);
+      router.push("/ventas");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo eliminar la venta");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <Button variant="destructive" onClick={() => setOpen(true)}>
+        <Trash2 className="h-4 w-4" />
+        Eliminar venta
+      </Button>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>¿Eliminar esta venta?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Se eliminará por completo, junto con sus productos. Si el inventario ya
+            había sido descontado, se restituirá automáticamente mediante un ajuste.
+            Esta acción no se puede deshacer.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <Button variant="destructive" onClick={onDelete} disabled={loading}>
+            {loading && <Loader2 className="animate-spin" />}
+            Sí, eliminar
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

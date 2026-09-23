@@ -9,6 +9,7 @@ import { formatDateTime } from "@/lib/format";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { WarrantyStatusSelect } from "@/components/warranties/warranty-status-select";
+import { DeleteWarrantyButton } from "@/components/warranties/delete-warranty-button";
 import { PrintPdfButton } from "@/components/shared/print-pdf-button";
 import { primaryImage } from "@/lib/product-images";
 import {
@@ -29,6 +30,7 @@ export default async function WarrantiesPage({
     redirect("/hoy");
   }
   const canManage = true;
+  const canDelete = can(session.user.role, "warranties:delete");
 
   const filters: WarrantyFilters = {
     status: (typeof sp.status === "string" ? sp.status : "all") as WarrantyFilters["status"],
@@ -101,7 +103,10 @@ export default async function WarrantiesPage({
                       />
                     </TableCell>
                     <TableCell>
-                      <PrintPdfButton href={`/api/pdf/garantia/${w.id}`} />
+                      <div className="flex items-center gap-1">
+                        <PrintPdfButton href={`/api/pdf/garantia/${w.id}`} />
+                        {canDelete && <DeleteWarrantyButton warrantyId={w.id} code={w.code} />}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

@@ -72,3 +72,36 @@ export async function updateWarrantyStatus(
   await db.warranty.update({ where: { id: warrantyId }, data: { status } });
   revalidatePath("/garantias");
 }
+
+/**
+ * A warranty always discounts stock immediately at creation (see
+ * createWarranty), so deleting one — e.g. a duplicate or test entry — must
+ * give that stock back first via an AJUSTE, or the product would stay
+ * permanently short with no trace of why.
+ */
+export async function deleteWarranty(warrantyId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("No autorizado");
+  if (!can(session.user.role, "warranties:delete")) {
+    throw new Error("No tienes permisos para eliminar garantías");
+  }
+
+  await db.$transaction(async (tx) => {
+    const warranty = await tx.warranty.findUniqueOrThrow({ where: { id: warrantyId } });
+
+    if (warranty.inventoryApplied) {
+      await recordInventoryMovement(tx, {
+        productId: warranty.productId,
+        type: "AJUSTE",
+        quantity: warranty.quantity,
+        reason: `Reverso por eliminación de ${warranty.code}`,
+        reference: `Eliminación ${warranty.code}`,
+        userId: session.user.id,
+      });
+    }
+
+    await tx.warranty.delete({ where: { id: warrantyId } });
+  });
+
+  revalidatePath("/garantias");
+}

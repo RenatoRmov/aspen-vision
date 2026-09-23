@@ -11,7 +11,11 @@ import { formatRut } from "@/lib/rut";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { SaleStatusBadge } from "@/components/sales/sale-status-badge";
-import { ConfirmSaleButton, CancelSaleButton } from "@/components/sales/sale-actions";
+import {
+  ConfirmSaleButton,
+  CancelSaleButton,
+  DeleteSaleButton,
+} from "@/components/sales/sale-actions";
 import { PrintPdfButton } from "@/components/shared/print-pdf-button";
 import {
   Table,
@@ -38,6 +42,7 @@ export default async function SaleDetailPage({
     !sale.cancelledAt;
   const canCancel = can(session.user.role, "sales:cancel") && !sale.cancelledAt;
   const canEdit = can(session.user.role, "sales:edit") && !sale.cancelledAt;
+  const canDelete = can(session.user.role, "sales:delete");
 
   const hasDiscount = sale.items.some((i) => i.discountAmount > 0);
   const subtotal = sale.items.reduce((a, i) => a + i.subtotal, 0);
@@ -65,6 +70,7 @@ export default async function SaleDetailPage({
             )}
             {canConfirm && <ConfirmSaleButton saleId={sale.id} />}
             {canCancel && <CancelSaleButton saleId={sale.id} />}
+            {canDelete && <DeleteSaleButton saleId={sale.id} />}
           </div>
         }
       />

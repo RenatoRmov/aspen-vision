@@ -12,8 +12,11 @@ const CAPABILITIES = {
   "sales:confirm": ["ADMIN", "PREPARADOR"],
   "sales:cancel": ["ADMIN"],
   "sales:edit": ["ADMIN"], // correcting an already-registered sale (items, prices, discounts)
+  "sales:delete": ["ADMIN"],
   "ambassadors:manage": ["ADMIN", "PREPARADOR"],
+  "ambassadors:delete": ["ADMIN"],
   "warranties:manage": ["ADMIN", "PREPARADOR"],
+  "warranties:delete": ["ADMIN"],
   "users:manage": ["ADMIN"],
   "reports:view": ["ADMIN", "PREPARADOR"],
   "collections:manage": ["ADMIN", "PREPARADOR", "CONTADORA"],

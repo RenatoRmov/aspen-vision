@@ -76,3 +76,44 @@ export async function createAmbassadorDelivery(input: z.infer<typeof deliverySch
   revalidatePath(`/embajadores/${data.ambassadorId}`);
   return deliveryId;
 }
+
+/**
+ * Deletes an ambassador along with their full delivery history — there's no
+ * separate "delete this one delivery" feature, and AmbassadorDelivery.
+ * ambassadorId is RESTRICT, so the deliveries have to go for the ambassador
+ * to go. Every delivered unit is given back to stock first via an AJUSTE,
+ * same as deleteWarranty/deleteSale, so removing an ambassador never leaves
+ * inventory silently short.
+ */
+export async function deleteAmbassador(ambassadorId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("No autorizado");
+  if (!can(session.user.role, "ambassadors:delete")) {
+    throw new Error("No tienes permisos para eliminar embajadores");
+  }
+
+  await db.$transaction(async (tx) => {
+    const deliveries = await tx.ambassadorDelivery.findMany({
+      where: { ambassadorId },
+      include: { items: true },
+    });
+
+    for (const delivery of deliveries) {
+      for (const item of delivery.items) {
+        await recordInventoryMovement(tx, {
+          productId: item.productId,
+          type: "AJUSTE",
+          quantity: item.quantity,
+          reason: `Reverso por eliminación de embajador (entrega ${delivery.code})`,
+          reference: "Eliminación de embajador",
+          userId: session.user.id,
+        });
+      }
+    }
+
+    await tx.ambassadorDelivery.deleteMany({ where: { ambassadorId } });
+    await tx.ambassador.delete({ where: { id: ambassadorId } });
+  });
+
+  revalidatePath("/embajadores");
+}
