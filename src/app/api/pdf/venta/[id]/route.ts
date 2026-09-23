@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { VentaReceiptDocument } from "@/lib/pdf/receipt-document";
 import { getCompanyLogoSrc } from "@/lib/pdf/company-logo";
 import { formatRut } from "@/lib/rut";
+import { taxOf } from "@/lib/sale-totals";
 
 export async function GET(
   _request: Request,
@@ -31,8 +32,10 @@ export async function GET(
 
   const subtotal = sale.items.reduce((a, i) => a + i.subtotal, 0);
   const discountTotal = sale.items.reduce((a, i) => a + i.discountAmount, 0);
-  const taxAmount = sale.items.reduce((a, i) => a + i.taxAmount, 0);
-  const total = sale.items.reduce((a, i) => a + i.total, 0);
+  // IVA is computed once for the whole sale, not per line — see
+  // src/lib/sale-totals.ts.
+  const taxAmount = taxOf(subtotal);
+  const total = subtotal + taxAmount;
   const logoSrc = await getCompanyLogoSrc();
 
   const element = createElement(VentaReceiptDocument, {
@@ -51,8 +54,7 @@ export async function GET(
       unitPrice: item.unitPrice,
       discountPercent: item.discountPercent,
       discountAmount: item.discountAmount,
-      taxAmount: item.taxAmount,
-      total: item.total,
+      subtotal: item.subtotal,
       notes: item.notes,
     })),
     subtotal,

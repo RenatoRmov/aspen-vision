@@ -8,6 +8,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCLP, formatDateTime } from "@/lib/format";
+import { withTax } from "@/lib/sale-totals";
 import { SaleStatusBadge } from "./sale-status-badge";
 import { DeleteSaleButton } from "./sale-actions";
 
@@ -23,7 +24,7 @@ export function SalesTable({
     cancelledAt: Date | null;
     customer: { name: string } | null;
     seller: { name: string };
-    items: { quantity: number; total: number }[];
+    items: { quantity: number; subtotal: number }[];
   }[];
   canDelete?: boolean;
 }) {
@@ -52,7 +53,7 @@ export function SalesTable({
         </TableHeader>
         <TableBody>
           {sales.map((s) => {
-            const total = s.items.reduce((a, i) => a + i.total, 0);
+            const total = withTax(s.items.reduce((a, i) => a + i.subtotal, 0));
             const units = s.items.reduce((a, i) => a + i.quantity, 0);
             return (
               <TableRow key={s.id}>

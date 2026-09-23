@@ -255,9 +255,7 @@ model SaleItem {
   unitPrice       Int // precio unitario de lista (sin IVA, sin descuento)
   discountPercent Float   @default(0) // % de descuento sobre la línea (0-100)
   discountAmount  Int     @default(0) // monto descontado, en CLP: quantity*unitPrice*discountPercent/100
-  taxAmount       Int     @default(0) // IVA de la línea (19% del subtotal neto, ya con descuento aplicado)
   subtotal        Int // neto tras descuento: quantity*unitPrice - discountAmount
-  total           Int     @default(0) // subtotal + taxAmount
   notes           String?
 
   @@index([saleId])

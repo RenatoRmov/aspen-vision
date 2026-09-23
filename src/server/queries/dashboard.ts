@@ -4,6 +4,7 @@ import { bucketGranularity } from "@/lib/date-range";
 import { format } from "date-fns";
 import { LOW_STOCK_THRESHOLD } from "@/lib/constants";
 import { primaryImage } from "@/lib/product-images";
+import { withTax } from "@/lib/sale-totals";
 
 export async function getDashboardData(from: Date, to: Date) {
   const [sales, movementTotals, totalStockAgg, pendingSales, ambassadorUnits, warrantyUnits] =
@@ -23,8 +24,6 @@ export async function getDashboardData(from: Date, to: Date) {
             select: {
               quantity: true,
               subtotal: true,
-              taxAmount: true,
-              total: true,
               productId: true,
               product: {
                 select: {
@@ -54,7 +53,7 @@ export async function getDashboardData(from: Date, to: Date) {
           code: true,
           date: true,
           seller: { select: { name: true } },
-          items: { select: { quantity: true, subtotal: true, total: true } },
+          items: { select: { quantity: true, subtotal: true } },
         },
       }),
       db.ambassadorDeliveryItem.aggregate({
@@ -79,22 +78,25 @@ export async function getDashboardData(from: Date, to: Date) {
   const outOfStockProducts = activeProducts.filter((p) => p.stock <= 0);
 
   const revenue = sales.reduce((sum, s) => sum + s.items.reduce((a, i) => a + i.subtotal, 0), 0);
-  const revenueWithTax = sales.reduce((sum, s) => sum + s.items.reduce((a, i) => a + i.total, 0), 0);
+  // IVA is computed once per sale (see src/lib/sale-totals.ts), so
+  // "with tax" here means each sale's own total, summed — not tax
+  // re-accumulated per line item.
+  const revenueWithTax = sales.reduce(
+    (sum, s) => sum + withTax(s.items.reduce((a, i) => a + i.subtotal, 0)),
+    0,
+  );
   const unitsSold = sales.reduce((sum, s) => sum + s.items.reduce((a, i) => a + i.quantity, 0), 0);
 
   const productTotals = new Map<
     string,
-    { name: string; qty: number; orders: Set<string>; net: number; withTax: number }
+    { name: string; qty: number; orders: Set<string>; net: number }
   >();
   const sellerTotals = new Map<string, { name: string; revenue: number; qty: number }>();
   const categoryTotals = new Map<
     string,
-    { name: string; qty: number; orders: Set<string>; net: number; withTax: number }
+    { name: string; qty: number; orders: Set<string>; net: number }
   >();
-  const customerTotals = new Map<
-    string,
-    { name: string; orders: Set<string>; net: number; withTax: number }
-  >();
+  const customerTotals = new Map<string, { name: string; orders: Set<string>; net: number }>();
 
   for (const s of sales) {
     const sellerName = s.seller.name;
@@ -105,7 +107,6 @@ export async function getDashboardData(from: Date, to: Date) {
         name: s.customer.name,
         orders: new Set<string>(),
         net: 0,
-        withTax: 0,
       };
       cEntry.orders.add(s.id);
       customerTotals.set(s.customerId, cEntry);
@@ -121,12 +122,10 @@ export async function getDashboardData(from: Date, to: Date) {
         qty: 0,
         orders: new Set<string>(),
         net: 0,
-        withTax: 0,
       };
       p.qty += item.quantity;
       p.orders.add(s.id);
       p.net += item.subtotal;
-      p.withTax += item.total;
       productTotals.set(pKey, p);
 
       const catId = item.product.categoryId;
@@ -135,25 +134,25 @@ export async function getDashboardData(from: Date, to: Date) {
         qty: 0,
         orders: new Set<string>(),
         net: 0,
-        withTax: 0,
       };
       cat.qty += item.quantity;
       cat.orders.add(s.id);
       cat.net += item.subtotal;
-      cat.withTax += item.total;
       categoryTotals.set(catId, cat);
 
       if (s.customerId) {
         const cEntry = customerTotals.get(s.customerId)!;
         cEntry.net += item.subtotal;
-        cEntry.withTax += item.total;
       }
     }
     sellerTotals.set(s.sellerId, sellerEntry);
   }
 
+  // "With tax" per product/category/customer is IVA applied once to that
+  // entry's accumulated net — not a sum of independently-taxed lines, same
+  // principle as a single sale's total (src/lib/sale-totals.ts).
   const rankedProducts = [...productTotals.values()]
-    .map((p) => ({ name: p.name, qty: p.qty, orders: p.orders.size, net: p.net, withTax: p.withTax }))
+    .map((p) => ({ name: p.name, qty: p.qty, orders: p.orders.size, net: p.net, withTax: withTax(p.net) }))
     .sort((a, b) => b.qty - a.qty);
   const topProducts = rankedProducts.slice(0, 8); // compact chart data
   const topProductsTable = rankedProducts.slice(0, 40); // paginated table (client-side, 10/page)
@@ -174,12 +173,12 @@ export async function getDashboardData(from: Date, to: Date) {
   const salesBySeller = [...sellerTotals.values()].sort((a, b) => b.revenue - a.revenue);
 
   const topCategories = [...categoryTotals.values()]
-    .map((c) => ({ name: c.name, qty: c.qty, orders: c.orders.size, net: c.net, withTax: c.withTax }))
+    .map((c) => ({ name: c.name, qty: c.qty, orders: c.orders.size, net: c.net, withTax: withTax(c.net) }))
     .sort((a, b) => b.withTax - a.withTax)
     .slice(0, 10);
 
   const topCustomers = [...customerTotals.values()]
-    .map((c) => ({ name: c.name, orders: c.orders.size, net: c.net, withTax: c.withTax }))
+    .map((c) => ({ name: c.name, orders: c.orders.size, net: c.net, withTax: withTax(c.net) }))
     .sort((a, b) => b.withTax - a.withTax)
     .slice(0, 8);
 
@@ -229,7 +228,7 @@ export async function getDashboardData(from: Date, to: Date) {
       code: s.code,
       date: s.date,
       sellerName: s.seller.name,
-      total: s.items.reduce((a, i) => a + i.total, 0),
+      total: withTax(s.items.reduce((a, i) => a + i.subtotal, 0)),
       units: s.items.reduce((a, i) => a + i.quantity, 0),
     })),
     pendingSalesTotalCount: pendingSales.length,

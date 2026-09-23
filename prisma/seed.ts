@@ -5,8 +5,6 @@ import bcrypt from "bcryptjs";
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const db = new PrismaClient({ adapter });
 
-const IVA_RATE = 0.19;
-
 function code(prefix: string, n: number) {
   return `${prefix}-${String(n).padStart(6, "0")}`;
 }
@@ -20,11 +18,6 @@ function ean13(seedNum: number) {
   }
   const check = (10 - (sum % 10)) % 10;
   return base + check;
-}
-
-function money(subtotal: number) {
-  const taxAmount = Math.round(subtotal * IVA_RATE);
-  return { subtotal, taxAmount, total: subtotal + taxAmount };
 }
 
 async function main() {
@@ -195,18 +188,13 @@ async function main() {
         .slice(0, lineCount);
 
       const requiresConfirmation = i % 5 !== 0;
-      const items = chosen.map((p, idx) => {
-        const m = money(p.price);
-        return {
-          position: idx,
-          productId: p.id,
-          quantity: 1,
-          unitPrice: p.price,
-          subtotal: m.subtotal,
-          taxAmount: m.taxAmount,
-          total: m.total,
-        };
-      });
+      const items = chosen.map((p, idx) => ({
+        position: idx,
+        productId: p.id,
+        quantity: 1,
+        unitPrice: p.price,
+        subtotal: p.price,
+      }));
 
       const customer = i % 3 === 0 ? customers[i % customers.length] : null;
 

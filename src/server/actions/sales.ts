@@ -9,8 +9,6 @@ import { recordInventoryMovement, nextSequentialCode } from "@/server/inventory"
 import { canonicalRut } from "@/lib/rut";
 import type { Prisma } from "@/generated/prisma/client";
 
-const IVA_RATE = 0.19;
-
 const saleItemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().int().min(1),
@@ -35,12 +33,14 @@ const saleSchema = z.object({
 
 export type SaleFormValues = z.infer<typeof saleSchema>;
 
+// IVA is never computed per line — see src/lib/sale-totals.ts. Only the net
+// discount/subtotal are line-level facts; the sale's tax is derived once,
+// at read time, from the sum of these.
 function lineAmounts(quantity: number, unitPrice: number, discountPercent: number) {
   const gross = quantity * unitPrice;
   const discountAmount = Math.round(gross * (discountPercent / 100));
   const subtotal = gross - discountAmount;
-  const taxAmount = Math.round(subtotal * IVA_RATE);
-  return { discountAmount, subtotal, taxAmount, total: subtotal + taxAmount };
+  return { discountAmount, subtotal };
 }
 
 async function findOrCreateCustomer(

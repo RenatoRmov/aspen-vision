@@ -17,6 +17,7 @@ import {
   DeleteSaleButton,
 } from "@/components/sales/sale-actions";
 import { PrintPdfButton } from "@/components/shared/print-pdf-button";
+import { taxOf } from "@/lib/sale-totals";
 import {
   Table,
   TableBody,
@@ -46,8 +47,11 @@ export default async function SaleDetailPage({
 
   const hasDiscount = sale.items.some((i) => i.discountAmount > 0);
   const subtotal = sale.items.reduce((a, i) => a + i.subtotal, 0);
-  const taxAmount = sale.items.reduce((a, i) => a + i.taxAmount, 0);
-  const total = sale.items.reduce((a, i) => a + i.total, 0);
+  // IVA is computed once for the whole sale, not per line — see
+  // src/lib/sale-totals.ts. Each line below shows the price the customer is
+  // paying for it; IVA only ever appears once, in the summary underneath.
+  const taxAmount = taxOf(subtotal);
+  const total = subtotal + taxAmount;
   const totalDiscount = sale.items.reduce((a, i) => a + i.discountAmount, 0);
 
   return (
@@ -98,8 +102,7 @@ export default async function SaleDetailPage({
                   <TableHead className="text-right">Cantidad</TableHead>
                   <TableHead className="text-right">P. unitario</TableHead>
                   {hasDiscount && <TableHead className="text-right">Desc.</TableHead>}
-                  <TableHead className="text-right">IVA</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Precio</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -135,11 +138,8 @@ export default async function SaleDetailPage({
                             : "—"}
                         </TableCell>
                       )}
-                      <TableCell className="text-right tabular-nums text-muted-foreground">
-                        {formatCLP(item.taxAmount)}
-                      </TableCell>
                       <TableCell className="text-right font-medium tabular-nums">
-                        {formatCLP(item.total)}
+                        {formatCLP(item.subtotal)}
                       </TableCell>
                     </TableRow>
                   );

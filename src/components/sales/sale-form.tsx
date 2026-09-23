@@ -30,8 +30,7 @@ import { formatCLP } from "@/lib/format";
 import { formatRut, isValidRut } from "@/lib/rut";
 import { cn } from "@/lib/utils";
 import { createSale, updateSale } from "@/server/actions/sales";
-
-const IVA_RATE = 0.19;
+import { taxOf } from "@/lib/sale-totals";
 
 type Line = {
   productId: string;
@@ -144,15 +143,16 @@ export function SaleForm({
         const gross = l.quantity * l.unitPrice;
         const discountAmount = Math.round(gross * (l.discountPercent / 100));
         const subtotal = gross - discountAmount;
-        const taxAmount = Math.round(subtotal * IVA_RATE);
-        return { ...l, discountAmount, subtotal, taxAmount, total: subtotal + taxAmount };
+        return { ...l, discountAmount, subtotal };
       }),
     [lines],
   );
 
   const subtotal = computed.reduce((s, l) => s + l.subtotal, 0);
-  const taxAmount = computed.reduce((s, l) => s + l.taxAmount, 0);
-  const total = computed.reduce((s, l) => s + l.total, 0);
+  // IVA is computed once for the whole sale, not accumulated per line — see
+  // src/lib/sale-totals.ts.
+  const taxAmount = taxOf(subtotal);
+  const total = subtotal + taxAmount;
   const totalUnits = computed.reduce((s, l) => s + l.quantity, 0);
   const totalDiscount = computed.reduce((s, l) => s + l.discountAmount, 0);
 
@@ -256,8 +256,7 @@ export function SaleForm({
                   <TableHead className="w-20 text-right text-xs">Cant.</TableHead>
                   <TableHead className="w-28 text-right text-xs">P. unitario</TableHead>
                   <TableHead className="w-20 text-right text-xs">% Desc.</TableHead>
-                  <TableHead className="w-24 text-right text-xs">IVA</TableHead>
-                  <TableHead className="w-28 text-right text-xs">Importe</TableHead>
+                  <TableHead className="w-28 text-right text-xs">Precio</TableHead>
                   <TableHead className="w-16" />
                 </TableRow>
               </TableHeader>
@@ -330,11 +329,8 @@ export function SaleForm({
                           className="h-8 text-right"
                         />
                       </TableCell>
-                      <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
-                        {formatCLP(l.taxAmount)}
-                      </TableCell>
                       <TableCell className="text-right text-sm font-medium tabular-nums">
-                        {formatCLP(l.total)}
+                        {formatCLP(l.subtotal)}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-0.5">
@@ -363,14 +359,14 @@ export function SaleForm({
                     </TableRow>
                     {l.discountAmount > 0 && (
                       <TableRow className="hover:bg-transparent">
-                        <TableCell colSpan={9} className="py-0.5 pt-0 text-right text-xs text-status-good">
+                        <TableCell colSpan={8} className="py-0.5 pt-0 text-right text-xs text-status-good">
                           Descuento aplicado: -{formatCLP(l.discountAmount)}
                         </TableCell>
                       </TableRow>
                     )}
                     {noteOpenFor === l.productId && (
                       <TableRow className="hover:bg-transparent">
-                        <TableCell colSpan={9} className="bg-muted/30 py-2">
+                        <TableCell colSpan={8} className="bg-muted/30 py-2">
                           <Textarea
                             rows={2}
                             placeholder="Nota para este producto (ej. graduación, observación del cliente)"

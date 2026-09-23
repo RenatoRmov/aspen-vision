@@ -6,6 +6,7 @@ import { can } from "@/lib/permissions";
 import { canonicalRut } from "@/lib/rut";
 import { computeSaldo } from "@/lib/collections";
 import { computeClientEstado, computeDueDate, isBirthdayToday, utcStartOfToday } from "@/lib/customers";
+import { withTax } from "@/lib/sale-totals";
 
 /** Everything the "Hoy" dashboard needs, scoped to a single seller unless
  * the viewer has customers:view-all (mirrors sales:view-all exactly). */
@@ -21,7 +22,7 @@ export async function getTodayData(userId: string, role: Role) {
   const customers = await db.customer.findMany({
     where: canViewAll ? {} : { assignedSellerId: userId },
     include: {
-      sales: { where: { cancelledAt: null }, select: { date: true, items: { select: { total: true } } } },
+      sales: { where: { cancelledAt: null }, select: { date: true, items: { select: { subtotal: true } } } },
       activities: true,
     },
   });
@@ -63,7 +64,9 @@ export async function getTodayData(userId: string, role: Role) {
     const sortedSales = [...c.sales].sort((a, b) => b.date.getTime() - a.date.getTime());
     const lastSale = sortedSales[0] ?? null;
     const lastSaleDate = lastSale?.date ?? null;
-    const lastSaleAmount = lastSale ? lastSale.items.reduce((s, i) => s + i.total, 0) : 0;
+    const lastSaleAmount = lastSale
+      ? withTax(lastSale.items.reduce((s, i) => s + i.subtotal, 0))
+      : 0;
     const estado = computeClientEstado(lastSaleDate, now);
     const daysSinceLastSale = lastSaleDate ? differenceInCalendarDays(now, lastSaleDate) : null;
     const rut = canonicalRut(c.rut);

@@ -67,14 +67,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   colNum: { width: "6%" },
-  colDesc: { width: "40%" },
-  colDescDiscounted: { width: "29%" },
+  colDesc: { width: "52%" },
+  colDescDiscounted: { width: "41%" },
   colDescWide: { width: "80%" },
   colQty: { width: "10%", textAlign: "right" },
   colQtyWide: { width: "14%", textAlign: "right" },
   colPrice: { width: "16%", textAlign: "right" },
   colDiscount: { width: "11%", textAlign: "right" },
-  colTax: { width: "12%", textAlign: "right" },
   colAmount: { width: "16%", textAlign: "right" },
   summaryBox: {
     marginTop: 10,
@@ -128,8 +127,7 @@ type SaleLine = {
   unitPrice: number;
   discountPercent: number;
   discountAmount: number;
-  taxAmount: number;
-  total: number;
+  subtotal: number;
   notes?: string | null;
 };
 
@@ -204,7 +202,6 @@ export function VentaReceiptDocument({
             <Text style={styles.colQty}>Cant.</Text>
             <Text style={styles.colPrice}>P. unitario</Text>
             {hasDiscount && <Text style={styles.colDiscount}>% Desc.</Text>}
-            <Text style={styles.colTax}>IVA</Text>
             <Text style={styles.colAmount}>Importe</Text>
           </View>
           {lines.map((l) => (
@@ -221,8 +218,7 @@ export function VentaReceiptDocument({
                   {l.discountAmount > 0 ? `${l.discountPercent}%` : "—"}
                 </Text>
               )}
-              <Text style={styles.colTax}>{formatCLP(l.taxAmount)}</Text>
-              <Text style={styles.colAmount}>{formatCLP(l.total)}</Text>
+              <Text style={styles.colAmount}>{formatCLP(l.subtotal)}</Text>
             </View>
           ))}
         </View>

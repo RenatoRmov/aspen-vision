@@ -7,6 +7,7 @@ import { computeSaldo } from "@/lib/collections";
 import { getCollections } from "@/server/queries/collections";
 import { getSales } from "@/server/queries/sales";
 import { computeClientEstado, utcWeekRange, type ClientEstado } from "@/lib/customers";
+import { withTax } from "@/lib/sale-totals";
 
 /** One-shot lookup of pending debt per client, keyed by canonical RUT — avoids
  * an N+1 query per customer. `Collection.clientRut` is always canonicalized
@@ -60,7 +61,7 @@ export async function getClients(filters: ClientFilters = {}) {
         assignedSeller: { select: { name: true } },
         sales: {
           where: { cancelledAt: null },
-          select: { date: true, items: { select: { total: true } } },
+          select: { date: true, items: { select: { subtotal: true } } },
         },
         activities: { select: { date: true, nextActionDate: true, status: true } },
       },
@@ -81,7 +82,7 @@ export async function getClients(filters: ClientFilters = {}) {
       : null;
     const ventaAcumulada = c.sales
       .filter((s) => s.date >= yearStart)
-      .reduce((sum, s) => sum + s.items.reduce((a, i) => a + i.total, 0), 0);
+      .reduce((sum, s) => sum + withTax(s.items.reduce((a, i) => a + i.subtotal, 0)), 0);
     const lastVisitDate = c.activities.length
       ? c.activities.reduce((max, a) => (a.date > max ? a.date : max), c.activities[0].date)
       : null;
@@ -162,7 +163,7 @@ export async function getClientById(id: string) {
   const estado = computeClientEstado(lastSaleDate, now);
 
   const ventaAcumuladaAnual = salesThisYear.reduce(
-    (sum, s) => sum + s.items.reduce((a, i) => a + i.total, 0),
+    (sum, s) => sum + withTax(s.items.reduce((a, i) => a + i.subtotal, 0)),
     0,
   );
 
@@ -182,7 +183,7 @@ export async function getClientById(id: string) {
     }
   }
   const totalRevenueWithTax = activeSales.reduce(
-    (sum, s) => sum + s.items.reduce((a, i) => a + i.total, 0),
+    (sum, s) => sum + withTax(s.items.reduce((a, i) => a + i.subtotal, 0)),
     0,
   );
   const avgDiscountPercent = totalDiscountLines > 0 ? totalDiscountPercentSum / totalDiscountLines : 0;
