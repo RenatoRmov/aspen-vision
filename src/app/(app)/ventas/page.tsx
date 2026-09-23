@@ -18,6 +18,7 @@ export default async function SalesPage({
 
   const canViewAll = can(session.user.role, "sales:view-all");
   const canCreate = can(session.user.role, "sales:create");
+  const canDelete = can(session.user.role, "sales:delete");
 
   const tab = typeof sp.tab === "string" ? sp.tab : "todas";
   const status = tab === "pendientes" ? "pending" : tab === "confirmadas" ? "confirmed" : "all";
@@ -56,7 +57,7 @@ export default async function SalesPage({
       />
 
       <SalesTabs pendingCount={pendingCount} />
-      <SalesTable sales={sales} />
+      <SalesTable sales={sales} canDelete={canDelete} />
     </div>
   );
 }

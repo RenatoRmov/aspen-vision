@@ -130,7 +130,15 @@ export function CancelSaleButton({ saleId }: { saleId: string }) {
   );
 }
 
-export function DeleteSaleButton({ saleId }: { saleId: string }) {
+/** `variant="icon"` renders a compact row action (list table) instead of the
+ * full labeled button (sale detail page) — same delete flow either way. */
+export function DeleteSaleButton({
+  saleId,
+  variant = "full",
+}: {
+  saleId: string;
+  variant?: "full" | "icon";
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -152,10 +160,22 @@ export function DeleteSaleButton({ saleId }: { saleId: string }) {
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
-      <Button variant="destructive" onClick={() => setOpen(true)}>
-        <Trash2 className="h-4 w-4" />
-        Eliminar venta
-      </Button>
+      {variant === "icon" ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => setOpen(true)}
+          title="Eliminar venta"
+        >
+          <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+        </Button>
+      ) : (
+        <Button variant="destructive" onClick={() => setOpen(true)}>
+          <Trash2 className="h-4 w-4" />
+          Eliminar venta
+        </Button>
+      )}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>¿Eliminar esta venta?</AlertDialogTitle>

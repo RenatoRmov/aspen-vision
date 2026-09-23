@@ -9,9 +9,11 @@ import {
 } from "@/components/ui/table";
 import { formatCLP, formatDateTime } from "@/lib/format";
 import { SaleStatusBadge } from "./sale-status-badge";
+import { DeleteSaleButton } from "./sale-actions";
 
 export function SalesTable({
   sales,
+  canDelete = false,
 }: {
   sales: {
     id: string;
@@ -23,6 +25,7 @@ export function SalesTable({
     seller: { name: string };
     items: { quantity: number; total: number }[];
   }[];
+  canDelete?: boolean;
 }) {
   if (sales.length === 0) {
     return (
@@ -44,6 +47,7 @@ export function SalesTable({
             <TableHead className="text-right">Unidades</TableHead>
             <TableHead className="text-right">Total</TableHead>
             <TableHead>Estado</TableHead>
+            {canDelete && <TableHead></TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -71,6 +75,11 @@ export function SalesTable({
                 <TableCell>
                   <SaleStatusBadge status={s.status} cancelled={!!s.cancelledAt} />
                 </TableCell>
+                {canDelete && (
+                  <TableCell>
+                    <DeleteSaleButton saleId={s.id} variant="icon" />
+                  </TableCell>
+                )}
               </TableRow>
             );
           })}
