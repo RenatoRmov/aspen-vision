@@ -8,8 +8,15 @@ export type ProductFilters = {
   categorySlug?: string;
   availability?: "all" | "in-stock" | "low-stock" | "out-of-stock";
   status?: "active" | "inactive" | "all";
-  sort?: "recent" | "name" | "stock-asc" | "stock-desc";
+  sort?: "recent" | "name" | "model" | "stock-asc" | "stock-desc";
 };
+
+// Model codes mix digits and letters ("6095 AEV54", "OR00065701B", "31072 C3"),
+// so a plain string sort would put "17121…" before "6095…" (compares the
+// leading "1" against "6"). A natural/numeric collator compares embedded
+// digit runs as numbers instead, which is what keeps every 6xxx model
+// together, then every 7xxx, etc.
+const naturalCollator = new Intl.Collator("es", { numeric: true, sensitivity: "base" });
 
 export async function getProducts(filters: ProductFilters) {
   const where: Prisma.ProductWhereInput = {};
@@ -34,12 +41,18 @@ export async function getProducts(filters: ProductFilters) {
   if (filters.sort === "name") orderBy = { name: "asc" };
   if (filters.sort === "stock-asc") orderBy = { stock: "asc" };
   if (filters.sort === "stock-desc") orderBy = { stock: "desc" };
+  // "model" sorts in JS below — a natural sort has no SQL equivalent to hand
+  // Prisma's orderBy, so the DB order here doesn't matter for that case.
 
   const products = await db.product.findMany({
     where,
     orderBy,
     include: { category: true },
   });
+
+  if (filters.sort === "model") {
+    products.sort((a, b) => naturalCollator.compare(a.model, b.model));
+  }
 
   if (filters.availability === "in-stock") {
     return products.filter((p) => p.stock > 0);

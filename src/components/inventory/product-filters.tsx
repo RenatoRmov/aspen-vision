@@ -66,6 +66,7 @@ export function ProductFilters() {
         items={{
           recent: "Recién actualizados",
           name: "Nombre (A-Z)",
+          model: "Modelo",
           "stock-asc": "Stock (menor a mayor)",
           "stock-desc": "Stock (mayor a menor)",
         }}
@@ -78,6 +79,7 @@ export function ProductFilters() {
         <SelectContent>
           <SelectItem value="recent">Recién actualizados</SelectItem>
           <SelectItem value="name">Nombre (A-Z)</SelectItem>
+          <SelectItem value="model">Modelo</SelectItem>
           <SelectItem value="stock-asc">Stock (menor a mayor)</SelectItem>
           <SelectItem value="stock-desc">Stock (mayor a menor)</SelectItem>
         </SelectContent>
