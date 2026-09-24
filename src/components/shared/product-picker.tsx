@@ -143,6 +143,7 @@ export function ProductPicker({
                 <button
                   key={p.id}
                   onClick={() => pick(p)}
+                  title={p.barcode}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left text-sm hover:bg-muted",
                   )}
@@ -158,8 +159,12 @@ export function ProductPicker({
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{p.name}</p>
+                    {/* Name repeats heavily across variants (e.g. "MORMAII
+                    Óptico" alone covers hundreds of SKUs) and duplicates the
+                    category shown before — model is what's actually printed
+                    on the frame's tag and is what tells two rows apart. */}
                     <p className="truncate text-xs text-muted-foreground">
-                      {p.category.name} · {p.barcode}
+                      {p.brand} · {p.model}
                     </p>
                   </div>
                   <StockBadge stock={p.stock} compact />
