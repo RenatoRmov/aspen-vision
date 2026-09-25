@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { can } from "@/lib/permissions";
-import { recordInventoryMovement, nextSequentialCode } from "@/server/inventory";
+import { recordInventoryMovements, nextSequentialCode } from "@/server/inventory";
 import { canonicalRut } from "@/lib/rut";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -195,18 +195,19 @@ export async function updateSale(saleId: string, input: SaleFormValues): Promise
         : null;
 
       if (sale.inventoryApplied) {
-        for (const item of sale.items) {
-          await recordInventoryMovement(tx, {
+        await recordInventoryMovements(
+          tx,
+          sale.items.map((item) => ({
             productId: item.productId,
-            type: "AJUSTE",
+            type: "AJUSTE" as const,
             quantity: item.quantity,
             reason: `Reverso por edición de ${sale.code}`,
             reference: `Edición ${sale.code}`,
             saleId: sale.id,
             userId: session.user.id,
             allowNegative: true,
-          });
-        }
+          })),
+        );
       }
 
       await tx.saleItem.deleteMany({ where: { saleId } });
@@ -235,17 +236,18 @@ export async function updateSale(saleId: string, input: SaleFormValues): Promise
       });
 
       if (sale.inventoryApplied) {
-        for (const item of data.items) {
-          await recordInventoryMovement(tx, {
+        await recordInventoryMovements(
+          tx,
+          data.items.map((item) => ({
             productId: item.productId,
-            type: "VENTA",
+            type: "VENTA" as const,
             quantity: -item.quantity,
             reference: `Venta ${sale.code} (editada)`,
             saleId: sale.id,
             userId: session.user.id,
             allowNegative: true,
-          });
-        }
+          })),
+        );
       }
     });
 
@@ -268,7 +270,7 @@ export async function confirmSale(saleId: string): Promise<Result<{ shortages: S
       return { ok: false, error: "No tienes permisos para confirmar ventas" };
     }
 
-    const shortages: StockShortage[] = [];
+    let shortages: StockShortage[] = [];
 
     await db.$transaction(async (tx) => {
       const sale = await tx.sale.findUniqueOrThrow({
@@ -280,24 +282,29 @@ export async function confirmSale(saleId: string): Promise<Result<{ shortages: S
         throw new Error("Esta venta ya fue confirmada.");
       }
 
-      for (const item of sale.items) {
-        // A sale already happened commercially — confirming it discounts
-        // stock to match reality even if the shelf count says there isn't
-        // enough, rather than blocking the preparador. The resulting shortage
-        // is surfaced as a warning instead (see StockShortage above).
-        const newStock = await recordInventoryMovement(tx, {
+      // A sale already happened commercially — confirming it discounts stock
+      // to match reality even if the shelf count says there isn't enough,
+      // rather than blocking the preparador. The resulting shortage is
+      // surfaced as a warning instead (see StockShortage above).
+      const newStocks = await recordInventoryMovements(
+        tx,
+        sale.items.map((item) => ({
           productId: item.productId,
-          type: "VENTA",
+          type: "VENTA" as const,
           quantity: -item.quantity,
           reference: `Venta ${sale.code}`,
           saleId: sale.id,
           userId: session.user.id,
           allowNegative: true,
-        });
-        if (newStock < 0) {
-          shortages.push({ name: `${item.product.brand} ${item.product.model}`, stock: newStock });
-        }
-      }
+        })),
+      );
+      shortages = sale.items
+        .map((item, i) => ({ item, newStock: newStocks[i] }))
+        .filter(({ newStock }) => newStock < 0)
+        .map(({ item, newStock }) => ({
+          name: `${item.product.brand} ${item.product.model}`,
+          stock: newStock,
+        }));
 
       await tx.sale.update({
         where: { id: saleId },
@@ -347,17 +354,18 @@ export async function deleteSale(saleId: string): Promise<Result> {
       });
 
       if (sale.inventoryApplied) {
-        for (const item of sale.items) {
-          await recordInventoryMovement(tx, {
+        await recordInventoryMovements(
+          tx,
+          sale.items.map((item) => ({
             productId: item.productId,
-            type: "AJUSTE",
+            type: "AJUSTE" as const,
             quantity: item.quantity,
             reason: `Reverso por eliminación de ${sale.code}`,
             reference: `Eliminación ${sale.code}`,
             userId: session.user.id,
             allowNegative: true,
-          });
-        }
+          })),
+        );
       }
 
       await tx.sale.delete({ where: { id: saleId } });
@@ -388,18 +396,19 @@ export async function cancelSale(saleId: string, reason: string): Promise<Result
       if (sale.cancelledAt) throw new Error("Esta venta ya está cancelada.");
 
       if (sale.inventoryApplied) {
-        for (const item of sale.items) {
-          await recordInventoryMovement(tx, {
+        await recordInventoryMovements(
+          tx,
+          sale.items.map((item) => ({
             productId: item.productId,
-            type: "AJUSTE",
+            type: "AJUSTE" as const,
             quantity: item.quantity,
             reason: `Reverso por cancelación de ${sale.code}`,
             reference: `Cancelación ${sale.code}`,
             saleId: sale.id,
             userId: session.user.id,
             allowNegative: true,
-          });
-        }
+          })),
+        );
       }
 
       await tx.sale.update({
