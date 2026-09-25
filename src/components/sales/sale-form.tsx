@@ -171,40 +171,41 @@ export function SaleForm({
     }
 
     setSubmitting(true);
-    try {
-      const payload = {
-        items: lines.map((l) => ({
-          productId: l.productId,
-          quantity: l.quantity,
-          unitPrice: l.unitPrice,
-          discountPercent: l.discountPercent,
-          notes: l.notes || undefined,
-        })),
-        customer: customer.rut ? customer : undefined,
-        paymentMethod,
-        notes,
-        sellerId: isAdmin ? sellerId : undefined,
-      };
+    const payload = {
+      items: lines.map((l) => ({
+        productId: l.productId,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        discountPercent: l.discountPercent,
+        notes: l.notes || undefined,
+      })),
+      customer: customer.rut ? customer : undefined,
+      paymentMethod,
+      notes,
+      sellerId: isAdmin ? sellerId : undefined,
+    };
 
-      if (isEdit) {
-        await updateSale(initialSale.id, payload);
-        toast.success("Venta actualizada");
-        router.push(`/ventas/${initialSale.id}`);
-      } else {
-        const id = await createSale(payload);
-        toast.success("Venta registrada");
-        router.push(`/ventas/${id}`);
+    if (isEdit) {
+      const result = await updateSale(initialSale.id, payload);
+      if (!result.ok) {
+        toast.error(result.error);
+        setSubmitting(false);
+        return;
       }
-      router.refresh();
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : `No se pudo ${isEdit ? "actualizar" : "registrar"} la venta`,
-      );
-    } finally {
-      setSubmitting(false);
+      toast.success("Venta actualizada");
+      router.push(`/ventas/${initialSale.id}`);
+    } else {
+      const result = await createSale(payload);
+      if (!result.ok) {
+        toast.error(result.error);
+        setSubmitting(false);
+        return;
+      }
+      toast.success("Venta registrada");
+      router.push(`/ventas/${result.id}`);
     }
+    router.refresh();
+    setSubmitting(false);
   };
 
   if (!isEdit && !customerLocked) {

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckCircle2, Loader2, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, Trash2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,7 +23,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { AlertTriangle } from "lucide-react";
 import { confirmSale, cancelSale, deleteSale } from "@/server/actions/sales";
 
 export function ConfirmSaleButton({
@@ -43,20 +42,20 @@ export function ConfirmSaleButton({
 
   const onConfirm = async () => {
     setLoading(true);
-    try {
-      const { shortages } = await confirmSale(saleId);
-      toast.success("Venta confirmada, inventario descontado");
-      if (shortages.length > 0) {
-        const list = shortages.map((s) => `${s.name} (${s.stock})`).join(", ");
-        toast.warning(`Quedaron con stock negativo: ${list}`);
-      }
-      setOpen(false);
-      router.refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo confirmar la venta");
-    } finally {
+    const result = await confirmSale(saleId);
+    if (!result.ok) {
+      toast.error(result.error);
       setLoading(false);
+      return;
     }
+    toast.success("Venta confirmada, inventario descontado");
+    if (result.shortages.length > 0) {
+      const list = result.shortages.map((s) => `${s.name} (${s.stock})`).join(", ");
+      toast.warning(`Quedaron con stock negativo: ${list}`);
+    }
+    setOpen(false);
+    router.refresh();
+    setLoading(false);
   };
 
   return (
@@ -109,16 +108,16 @@ export function CancelSaleButton({ saleId }: { saleId: string }) {
 
   const onCancel = async () => {
     setLoading(true);
-    try {
-      await cancelSale(saleId, reason);
-      toast.success("Venta cancelada");
-      setOpen(false);
-      router.refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo cancelar la venta");
-    } finally {
+    const result = await cancelSale(saleId, reason);
+    if (!result.ok) {
+      toast.error(result.error);
       setLoading(false);
+      return;
     }
+    toast.success("Venta cancelada");
+    setOpen(false);
+    router.refresh();
+    setLoading(false);
   };
 
   return (
@@ -176,17 +175,17 @@ export function DeleteSaleButton({
 
   const onDelete = async () => {
     setLoading(true);
-    try {
-      await deleteSale(saleId);
-      toast.success("Venta eliminada");
-      setOpen(false);
-      router.push("/ventas");
-      router.refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo eliminar la venta");
-    } finally {
+    const result = await deleteSale(saleId);
+    if (!result.ok) {
+      toast.error(result.error);
       setLoading(false);
+      return;
     }
+    toast.success("Venta eliminada");
+    setOpen(false);
+    router.push("/ventas");
+    router.refresh();
+    setLoading(false);
   };
 
   return (

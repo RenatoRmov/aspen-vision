@@ -33,6 +33,24 @@ const saleSchema = z.object({
 
 export type SaleFormValues = z.infer<typeof saleSchema>;
 
+// Every action below returns one of these instead of throwing. This Next.js/
+// React version turns ANY error thrown out of a Server Action into a raw
+// HTTP 500 (confirmed directly: an identical "Esta venta ya fue confirmada."
+// throw 500'd whether it was raised inside the db.$transaction or re-thrown
+// from a catch block outside it) instead of the normal graceful rejection a
+// client's try/catch expects — so a perfectly ordinary, expected condition
+// (double-confirm, insufficient stock, no permission) crashed the whole page
+// with an opaque digest-only error. Returning `{ ok: false, error }` sidesteps
+// that entirely: nothing here ever throws past its own try/catch, so there's
+// nothing for that bug to corrupt in transit.
+type Ok<T = object> = { ok: true } & T;
+type Err = { ok: false; error: string };
+type Result<T = object> = Ok<T> | Err;
+
+function fail(err: unknown, fallback: string): Err {
+  return { ok: false, error: err instanceof Error ? err.message : fallback };
+}
+
 // IVA is never computed per line — see src/lib/sale-totals.ts. Only the net
 // discount/subtotal are line-level facts; the sale's tax is derived once,
 // at read time, from the sum of these.
@@ -72,69 +90,75 @@ async function findOrCreateCustomer(
   });
 }
 
-export async function createSale(input: SaleFormValues) {
-  const session = await auth();
-  if (!session?.user) throw new Error("No autorizado");
-  if (!can(session.user.role, "sales:create")) {
-    throw new Error("No tienes permisos para registrar ventas");
-  }
+export async function createSale(input: SaleFormValues): Promise<Result<{ id: string }>> {
+  try {
+    const session = await auth();
+    if (!session?.user) return fail(null, "No autorizado");
+    if (!can(session.user.role, "sales:create")) {
+      return { ok: false, error: "No tienes permisos para registrar ventas" };
+    }
 
-  const data = saleSchema.parse(input);
-  // Enforced again here, not just in the form's step-gating UI — every sale
-  // must be tied to an identified customer now.
-  if (!data.customer) throw new Error("Selecciona un cliente para registrar la venta");
-  const sellerId =
-    session.user.role === "ADMIN" && data.sellerId ? data.sellerId : session.user.id;
+    const data = saleSchema.parse(input);
+    // Enforced again here, not just in the form's step-gating UI — every sale
+    // must be tied to an identified customer now.
+    if (!data.customer) {
+      return { ok: false, error: "Selecciona un cliente para registrar la venta" };
+    }
+    const sellerId =
+      session.user.role === "ADMIN" && data.sellerId ? data.sellerId : session.user.id;
 
-  const saleId = await db.$transaction(async (tx) => {
-    const code = await nextSequentialCode(tx, "sale", "V");
+    const saleId = await db.$transaction(async (tx) => {
+      const code = await nextSequentialCode(tx, "sale", "V");
 
-    const customer = data.customer ? await findOrCreateCustomer(tx, data.customer, sellerId) : null;
+      const customer = data.customer ? await findOrCreateCustomer(tx, data.customer, sellerId) : null;
 
-    const sale = await tx.sale.create({
-      data: {
-        code,
-        sellerId,
-        // Every sale always needs preparador confirmation before inventory
-        // is discounted — see confirmSale.
-        status: "PENDIENTE_CONFIRMACION",
-        customerId: customer?.id,
-        paymentMethod: data.paymentMethod || null,
-        notes: data.notes || null,
-        items: {
-          create: data.items.map((i, idx) => {
-            const amounts = lineAmounts(i.quantity, i.unitPrice, i.discountPercent);
-            return {
-              position: idx,
-              productId: i.productId,
-              quantity: i.quantity,
-              unitPrice: i.unitPrice,
-              discountPercent: i.discountPercent,
-              notes: i.notes || null,
-              ...amounts,
-            };
-          }),
+      const sale = await tx.sale.create({
+        data: {
+          code,
+          sellerId,
+          // Every sale always needs preparador confirmation before inventory
+          // is discounted — see confirmSale.
+          status: "PENDIENTE_CONFIRMACION",
+          customerId: customer?.id,
+          paymentMethod: data.paymentMethod || null,
+          notes: data.notes || null,
+          items: {
+            create: data.items.map((i, idx) => {
+              const amounts = lineAmounts(i.quantity, i.unitPrice, i.discountPercent);
+              return {
+                position: idx,
+                productId: i.productId,
+                quantity: i.quantity,
+                unitPrice: i.unitPrice,
+                discountPercent: i.discountPercent,
+                notes: i.notes || null,
+                ...amounts,
+              };
+            }),
+          },
         },
-      },
+      });
+
+      await tx.notification.create({
+        data: {
+          type: "VENTA_PENDIENTE",
+          title: "Nueva venta pendiente de confirmación",
+          message: `${sale.code} fue registrada y espera preparación/confirmación.`,
+          link: `/ventas/${sale.id}`,
+          targetRole: "PREPARADOR",
+          saleId: sale.id,
+        },
+      });
+
+      return sale.id;
     });
 
-    await tx.notification.create({
-      data: {
-        type: "VENTA_PENDIENTE",
-        title: "Nueva venta pendiente de confirmación",
-        message: `${sale.code} fue registrada y espera preparación/confirmación.`,
-        link: `/ventas/${sale.id}`,
-        targetRole: "PREPARADOR",
-        saleId: sale.id,
-      },
-    });
-
-    return sale.id;
-  });
-
-  revalidatePath("/ventas");
-  revalidatePath("/");
-  return saleId;
+    revalidatePath("/ventas");
+    revalidatePath("/");
+    return { ok: true, id: saleId };
+  } catch (err) {
+    return fail(err, "No se pudo registrar la venta");
+  }
 }
 
 /**
@@ -149,144 +173,155 @@ export async function createSale(input: SaleFormValues) {
  * shelf. If the sale is still PENDIENTE_CONFIRMACION, no inventory has
  * moved yet, so editing is just a data update.
  */
-export async function updateSale(saleId: string, input: SaleFormValues) {
-  const session = await auth();
-  if (!session?.user) throw new Error("No autorizado");
-  if (!can(session.user.role, "sales:edit")) {
-    throw new Error("No tienes permisos para editar ventas");
-  }
-
-  const data = saleSchema.parse(input);
-
-  await db.$transaction(async (tx) => {
-    const sale = await tx.sale.findUniqueOrThrow({
-      where: { id: saleId },
-      include: { items: true },
-    });
-    if (sale.cancelledAt) throw new Error("No se puede editar una venta cancelada.");
-
-    const customer = data.customer
-      ? await findOrCreateCustomer(tx, data.customer, sale.sellerId)
-      : null;
-
-    if (sale.inventoryApplied) {
-      for (const item of sale.items) {
-        await recordInventoryMovement(tx, {
-          productId: item.productId,
-          type: "AJUSTE",
-          quantity: item.quantity,
-          reason: `Reverso por edición de ${sale.code}`,
-          reference: `Edición ${sale.code}`,
-          saleId: sale.id,
-          userId: session.user.id,
-        });
-      }
+export async function updateSale(saleId: string, input: SaleFormValues): Promise<Result> {
+  try {
+    const session = await auth();
+    if (!session?.user) return { ok: false, error: "No autorizado" };
+    if (!can(session.user.role, "sales:edit")) {
+      return { ok: false, error: "No tienes permisos para editar ventas" };
     }
 
-    await tx.saleItem.deleteMany({ where: { saleId } });
+    const data = saleSchema.parse(input);
 
-    await tx.sale.update({
-      where: { id: saleId },
-      data: {
-        customerId: customer?.id ?? null,
-        paymentMethod: data.paymentMethod || null,
-        notes: data.notes || null,
-        items: {
-          create: data.items.map((i, idx) => {
-            const amounts = lineAmounts(i.quantity, i.unitPrice, i.discountPercent);
-            return {
-              position: idx,
-              productId: i.productId,
-              quantity: i.quantity,
-              unitPrice: i.unitPrice,
-              discountPercent: i.discountPercent,
-              notes: i.notes || null,
-              ...amounts,
-            };
-          }),
+    await db.$transaction(async (tx) => {
+      const sale = await tx.sale.findUniqueOrThrow({
+        where: { id: saleId },
+        include: { items: true },
+      });
+      if (sale.cancelledAt) throw new Error("No se puede editar una venta cancelada.");
+
+      const customer = data.customer
+        ? await findOrCreateCustomer(tx, data.customer, sale.sellerId)
+        : null;
+
+      if (sale.inventoryApplied) {
+        for (const item of sale.items) {
+          await recordInventoryMovement(tx, {
+            productId: item.productId,
+            type: "AJUSTE",
+            quantity: item.quantity,
+            reason: `Reverso por edición de ${sale.code}`,
+            reference: `Edición ${sale.code}`,
+            saleId: sale.id,
+            userId: session.user.id,
+            allowNegative: true,
+          });
+        }
+      }
+
+      await tx.saleItem.deleteMany({ where: { saleId } });
+
+      await tx.sale.update({
+        where: { id: saleId },
+        data: {
+          customerId: customer?.id ?? null,
+          paymentMethod: data.paymentMethod || null,
+          notes: data.notes || null,
+          items: {
+            create: data.items.map((i, idx) => {
+              const amounts = lineAmounts(i.quantity, i.unitPrice, i.discountPercent);
+              return {
+                position: idx,
+                productId: i.productId,
+                quantity: i.quantity,
+                unitPrice: i.unitPrice,
+                discountPercent: i.discountPercent,
+                notes: i.notes || null,
+                ...amounts,
+              };
+            }),
+          },
         },
-      },
+      });
+
+      if (sale.inventoryApplied) {
+        for (const item of data.items) {
+          await recordInventoryMovement(tx, {
+            productId: item.productId,
+            type: "VENTA",
+            quantity: -item.quantity,
+            reference: `Venta ${sale.code} (editada)`,
+            saleId: sale.id,
+            userId: session.user.id,
+            allowNegative: true,
+          });
+        }
+      }
     });
 
-    if (sale.inventoryApplied) {
-      for (const item of data.items) {
-        await recordInventoryMovement(tx, {
-          productId: item.productId,
-          type: "VENTA",
-          quantity: -item.quantity,
-          reference: `Venta ${sale.code} (editada)`,
-          saleId: sale.id,
-          userId: session.user.id,
-        });
-      }
-    }
-  });
-
-  revalidatePath("/ventas");
-  revalidatePath(`/ventas/${saleId}`);
-  revalidatePath("/");
+    revalidatePath("/ventas");
+    revalidatePath(`/ventas/${saleId}`);
+    revalidatePath("/");
+    return { ok: true };
+  } catch (err) {
+    return fail(err, "No se pudo actualizar la venta");
+  }
 }
 
 export type StockShortage = { name: string; stock: number };
 
-export async function confirmSale(saleId: string): Promise<{ shortages: StockShortage[] }> {
-  const session = await auth();
-  if (!session?.user) throw new Error("No autorizado");
-  if (!can(session.user.role, "sales:confirm")) {
-    throw new Error("No tienes permisos para confirmar ventas");
-  }
-
-  const shortages: StockShortage[] = [];
-
-  await db.$transaction(async (tx) => {
-    const sale = await tx.sale.findUniqueOrThrow({
-      where: { id: saleId },
-      include: { items: { include: { product: true } } },
-    });
-
-    if (sale.status !== "PENDIENTE_CONFIRMACION" || sale.inventoryApplied) {
-      throw new Error("Esta venta ya fue confirmada.");
+export async function confirmSale(saleId: string): Promise<Result<{ shortages: StockShortage[] }>> {
+  try {
+    const session = await auth();
+    if (!session?.user) return { ok: false, error: "No autorizado" };
+    if (!can(session.user.role, "sales:confirm")) {
+      return { ok: false, error: "No tienes permisos para confirmar ventas" };
     }
 
-    for (const item of sale.items) {
-      // A sale already happened commercially — confirming it discounts
-      // stock to match reality even if the shelf count says there isn't
-      // enough, rather than blocking the preparador. The resulting shortage
-      // is surfaced as a warning instead (see StockShortage above).
-      const newStock = await recordInventoryMovement(tx, {
-        productId: item.productId,
-        type: "VENTA",
-        quantity: -item.quantity,
-        reference: `Venta ${sale.code}`,
-        saleId: sale.id,
-        userId: session.user.id,
-        allowNegative: true,
+    const shortages: StockShortage[] = [];
+
+    await db.$transaction(async (tx) => {
+      const sale = await tx.sale.findUniqueOrThrow({
+        where: { id: saleId },
+        include: { items: { include: { product: true } } },
       });
-      if (newStock < 0) {
-        shortages.push({ name: `${item.product.brand} ${item.product.model}`, stock: newStock });
+
+      if (sale.status !== "PENDIENTE_CONFIRMACION" || sale.inventoryApplied) {
+        throw new Error("Esta venta ya fue confirmada.");
       }
-    }
 
-    await tx.sale.update({
-      where: { id: saleId },
-      data: {
-        status: "CONFIRMADA",
-        inventoryApplied: true,
-        confirmedById: session.user.id,
-        confirmedAt: new Date(),
-      },
+      for (const item of sale.items) {
+        // A sale already happened commercially — confirming it discounts
+        // stock to match reality even if the shelf count says there isn't
+        // enough, rather than blocking the preparador. The resulting shortage
+        // is surfaced as a warning instead (see StockShortage above).
+        const newStock = await recordInventoryMovement(tx, {
+          productId: item.productId,
+          type: "VENTA",
+          quantity: -item.quantity,
+          reference: `Venta ${sale.code}`,
+          saleId: sale.id,
+          userId: session.user.id,
+          allowNegative: true,
+        });
+        if (newStock < 0) {
+          shortages.push({ name: `${item.product.brand} ${item.product.model}`, stock: newStock });
+        }
+      }
+
+      await tx.sale.update({
+        where: { id: saleId },
+        data: {
+          status: "CONFIRMADA",
+          inventoryApplied: true,
+          confirmedById: session.user.id,
+          confirmedAt: new Date(),
+        },
+      });
+
+      await tx.notification.updateMany({
+        where: { saleId: sale.id, read: false },
+        data: { read: true },
+      });
     });
 
-    await tx.notification.updateMany({
-      where: { saleId: sale.id, read: false },
-      data: { read: true },
-    });
-  });
-
-  revalidatePath("/ventas");
-  revalidatePath(`/ventas/${saleId}`);
-  revalidatePath("/");
-  return { shortages };
+    revalidatePath("/ventas");
+    revalidatePath(`/ventas/${saleId}`);
+    revalidatePath("/");
+    return { ok: true, shortages };
+  } catch (err) {
+    return fail(err, "No se pudo confirmar la venta");
+  }
 }
 
 /**
@@ -297,79 +332,91 @@ export async function confirmSale(saleId: string): Promise<{ shortages: StockSho
  * silently short. SaleItems cascade with the sale; any InventoryMovement /
  * Notification rows that referenced it keep existing with saleId cleared.
  */
-export async function deleteSale(saleId: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("No autorizado");
-  if (!can(session.user.role, "sales:delete")) {
-    throw new Error("No tienes permisos para eliminar ventas");
-  }
-
-  await db.$transaction(async (tx) => {
-    const sale = await tx.sale.findUniqueOrThrow({
-      where: { id: saleId },
-      include: { items: true },
-    });
-
-    if (sale.inventoryApplied) {
-      for (const item of sale.items) {
-        await recordInventoryMovement(tx, {
-          productId: item.productId,
-          type: "AJUSTE",
-          quantity: item.quantity,
-          reason: `Reverso por eliminación de ${sale.code}`,
-          reference: `Eliminación ${sale.code}`,
-          userId: session.user.id,
-        });
-      }
+export async function deleteSale(saleId: string): Promise<Result> {
+  try {
+    const session = await auth();
+    if (!session?.user) return { ok: false, error: "No autorizado" };
+    if (!can(session.user.role, "sales:delete")) {
+      return { ok: false, error: "No tienes permisos para eliminar ventas" };
     }
 
-    await tx.sale.delete({ where: { id: saleId } });
-  });
+    await db.$transaction(async (tx) => {
+      const sale = await tx.sale.findUniqueOrThrow({
+        where: { id: saleId },
+        include: { items: true },
+      });
 
-  revalidatePath("/ventas");
-  revalidatePath("/");
+      if (sale.inventoryApplied) {
+        for (const item of sale.items) {
+          await recordInventoryMovement(tx, {
+            productId: item.productId,
+            type: "AJUSTE",
+            quantity: item.quantity,
+            reason: `Reverso por eliminación de ${sale.code}`,
+            reference: `Eliminación ${sale.code}`,
+            userId: session.user.id,
+            allowNegative: true,
+          });
+        }
+      }
+
+      await tx.sale.delete({ where: { id: saleId } });
+    });
+
+    revalidatePath("/ventas");
+    revalidatePath("/");
+    return { ok: true };
+  } catch (err) {
+    return fail(err, "No se pudo eliminar la venta");
+  }
 }
 
-export async function cancelSale(saleId: string, reason: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("No autorizado");
-  if (!can(session.user.role, "sales:cancel")) {
-    throw new Error("No tienes permisos para cancelar ventas");
-  }
-  if (!reason.trim()) throw new Error("Indica un motivo de cancelación");
-
-  await db.$transaction(async (tx) => {
-    const sale = await tx.sale.findUniqueOrThrow({
-      where: { id: saleId },
-      include: { items: true },
-    });
-    if (sale.cancelledAt) throw new Error("Esta venta ya está cancelada.");
-
-    if (sale.inventoryApplied) {
-      for (const item of sale.items) {
-        await recordInventoryMovement(tx, {
-          productId: item.productId,
-          type: "AJUSTE",
-          quantity: item.quantity,
-          reason: `Reverso por cancelación de ${sale.code}`,
-          reference: `Cancelación ${sale.code}`,
-          saleId: sale.id,
-          userId: session.user.id,
-        });
-      }
+export async function cancelSale(saleId: string, reason: string): Promise<Result> {
+  try {
+    const session = await auth();
+    if (!session?.user) return { ok: false, error: "No autorizado" };
+    if (!can(session.user.role, "sales:cancel")) {
+      return { ok: false, error: "No tienes permisos para cancelar ventas" };
     }
+    if (!reason.trim()) return { ok: false, error: "Indica un motivo de cancelación" };
 
-    await tx.sale.update({
-      where: { id: saleId },
-      data: {
-        cancelledAt: new Date(),
-        cancelReason: reason,
-        inventoryApplied: false,
-      },
+    await db.$transaction(async (tx) => {
+      const sale = await tx.sale.findUniqueOrThrow({
+        where: { id: saleId },
+        include: { items: true },
+      });
+      if (sale.cancelledAt) throw new Error("Esta venta ya está cancelada.");
+
+      if (sale.inventoryApplied) {
+        for (const item of sale.items) {
+          await recordInventoryMovement(tx, {
+            productId: item.productId,
+            type: "AJUSTE",
+            quantity: item.quantity,
+            reason: `Reverso por cancelación de ${sale.code}`,
+            reference: `Cancelación ${sale.code}`,
+            saleId: sale.id,
+            userId: session.user.id,
+            allowNegative: true,
+          });
+        }
+      }
+
+      await tx.sale.update({
+        where: { id: saleId },
+        data: {
+          cancelledAt: new Date(),
+          cancelReason: reason,
+          inventoryApplied: false,
+        },
+      });
     });
-  });
 
-  revalidatePath("/ventas");
-  revalidatePath(`/ventas/${saleId}`);
-  revalidatePath("/");
+    revalidatePath("/ventas");
+    revalidatePath(`/ventas/${saleId}`);
+    revalidatePath("/");
+    return { ok: true };
+  } catch (err) {
+    return fail(err, "No se pudo cancelar la venta");
+  }
 }
