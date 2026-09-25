@@ -227,17 +227,21 @@ export async function updateSale(saleId: string, input: SaleFormValues) {
   revalidatePath("/");
 }
 
-export async function confirmSale(saleId: string) {
+export type StockShortage = { name: string; stock: number };
+
+export async function confirmSale(saleId: string): Promise<{ shortages: StockShortage[] }> {
   const session = await auth();
   if (!session?.user) throw new Error("No autorizado");
   if (!can(session.user.role, "sales:confirm")) {
     throw new Error("No tienes permisos para confirmar ventas");
   }
 
+  const shortages: StockShortage[] = [];
+
   await db.$transaction(async (tx) => {
     const sale = await tx.sale.findUniqueOrThrow({
       where: { id: saleId },
-      include: { items: true },
+      include: { items: { include: { product: true } } },
     });
 
     if (sale.status !== "PENDIENTE_CONFIRMACION" || sale.inventoryApplied) {
@@ -245,14 +249,22 @@ export async function confirmSale(saleId: string) {
     }
 
     for (const item of sale.items) {
-      await recordInventoryMovement(tx, {
+      // A sale already happened commercially — confirming it discounts
+      // stock to match reality even if the shelf count says there isn't
+      // enough, rather than blocking the preparador. The resulting shortage
+      // is surfaced as a warning instead (see StockShortage above).
+      const newStock = await recordInventoryMovement(tx, {
         productId: item.productId,
         type: "VENTA",
         quantity: -item.quantity,
         reference: `Venta ${sale.code}`,
         saleId: sale.id,
         userId: session.user.id,
+        allowNegative: true,
       });
+      if (newStock < 0) {
+        shortages.push({ name: `${item.product.brand} ${item.product.model}`, stock: newStock });
+      }
     }
 
     await tx.sale.update({
@@ -274,6 +286,7 @@ export async function confirmSale(saleId: string) {
   revalidatePath("/ventas");
   revalidatePath(`/ventas/${saleId}`);
   revalidatePath("/");
+  return { shortages };
 }
 
 /**

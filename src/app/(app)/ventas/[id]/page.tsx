@@ -45,6 +45,14 @@ export default async function SaleDetailPage({
   const canEdit = can(session.user.role, "sales:edit") && !sale.cancelledAt;
   const canDelete = can(session.user.role, "sales:delete");
 
+  const insufficientItems = sale.items
+    .filter((i) => i.quantity > i.product.stock)
+    .map((i) => ({
+      name: `${i.product.brand} ${i.product.model}`,
+      available: i.product.stock,
+      requested: i.quantity,
+    }));
+
   const hasDiscount = sale.items.some((i) => i.discountAmount > 0);
   const subtotal = sale.items.reduce((a, i) => a + i.subtotal, 0);
   // IVA is computed once for the whole sale, not per line — see
@@ -72,7 +80,9 @@ export default async function SaleDetailPage({
                 Editar
               </Button>
             )}
-            {canConfirm && <ConfirmSaleButton saleId={sale.id} />}
+            {canConfirm && (
+              <ConfirmSaleButton saleId={sale.id} insufficientItems={insufficientItems} />
+            )}
             {canCancel && <CancelSaleButton saleId={sale.id} />}
             {canDelete && <DeleteSaleButton saleId={sale.id} />}
           </div>

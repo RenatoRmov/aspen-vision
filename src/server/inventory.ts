@@ -23,6 +23,11 @@ export async function recordInventoryMovement(
     saleId?: string;
     ambassadorDeliveryId?: string;
     warrantyId?: string;
+    // A confirmed sale is a real-world transaction that already happened —
+    // refusing to record it just because the shelf count says otherwise
+    // would block the preparador from confirming a sale that legitimately
+    // occurred. Every other caller keeps the hard guard.
+    allowNegative?: boolean;
   },
 ) {
   const product = await tx.product.findUniqueOrThrow({
@@ -30,7 +35,7 @@ export async function recordInventoryMovement(
   });
 
   const newStock = product.stock + params.quantity;
-  if (newStock < 0) {
+  if (newStock < 0 && !params.allowNegative) {
     throw new Error(
       `Stock insuficiente para ${product.brand} ${product.model}. Disponible: ${product.stock}, solicitado: ${-params.quantity}.`,
     );
