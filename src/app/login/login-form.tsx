@@ -86,11 +86,6 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
         {isSubmitting && <Loader2 className="animate-spin" />}
         Ingresar
       </Button>
-
-      <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-        <p className="font-medium text-foreground">Cuenta demo</p>
-        <p>admin@aspenvision.cl · admin123</p>
-      </div>
     </form>
   );
 }
