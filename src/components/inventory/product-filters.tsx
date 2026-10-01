@@ -47,6 +47,7 @@ export function ProductFilters() {
           "in-stock": "Con stock",
           "low-stock": "Stock bajo",
           "out-of-stock": "Sin stock",
+          "maleta-alert": "Sin stock en maleta",
         }}
         value={searchParams.get("disp") ?? "all"}
         onValueChange={(v) => update("disp", v as string)}
@@ -59,6 +60,7 @@ export function ProductFilters() {
           <SelectItem value="in-stock">Con stock</SelectItem>
           <SelectItem value="low-stock">Stock bajo</SelectItem>
           <SelectItem value="out-of-stock">Sin stock</SelectItem>
+          <SelectItem value="maleta-alert">Sin stock en maleta</SelectItem>
         </SelectContent>
       </Select>
 

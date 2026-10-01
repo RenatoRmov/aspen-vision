@@ -9,6 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { StockBadge } from "@/components/shared/stock-badge";
+import { MaletaToggle } from "@/components/inventory/maleta-toggle";
 import { primaryImage } from "@/lib/product-images";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -21,13 +22,14 @@ type ProductRow = {
   stock: number;
   images: Prisma.JsonValue;
   active: boolean;
+  inMaleta: boolean;
   category: { name: string };
 };
 
 /**
  * Fixed-format inventory table: Nombre · Categoría · Modelo · Stock Total ·
- * Código de barras — the columns stay in this order everywhere the table is
- * used, per the requested layout.
+ * En Maleta · Código de barras — the columns stay in this order everywhere
+ * the table is used, per the requested layout.
  */
 export function ProductTable({ products }: { products: ProductRow[] }) {
   return (
@@ -40,12 +42,14 @@ export function ProductTable({ products }: { products: ProductRow[] }) {
             <TableHead>Categoría</TableHead>
             <TableHead>Modelo</TableHead>
             <TableHead className="text-right">Stock Total</TableHead>
+            <TableHead className="text-center">En Maleta?</TableHead>
             <TableHead>Código de barras</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {products.map((p) => {
             const img = primaryImage(p.images);
+            const maletaAlert = p.inMaleta && p.stock <= 0;
             return (
               <TableRow key={p.id}>
                 <TableCell>
@@ -66,11 +70,19 @@ export function ProductTable({ products }: { products: ProductRow[] }) {
                       Inactivo
                     </span>
                   )}
+                  {maletaAlert && (
+                    <span className="ml-2 rounded-full bg-status-critical/10 px-1.5 py-0.5 text-[10px] font-medium text-status-critical">
+                      Sin stock en maleta
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="text-muted-foreground">{p.category.name}</TableCell>
                 <TableCell className="text-sm">{p.model}</TableCell>
                 <TableCell className="text-right">
                   <StockBadge stock={p.stock} />
+                </TableCell>
+                <TableCell className="text-center">
+                  <MaletaToggle productId={p.id} inMaleta={p.inMaleta} />
                 </TableCell>
                 <TableCell className="font-mono text-xs text-muted-foreground">
                   {p.barcode}

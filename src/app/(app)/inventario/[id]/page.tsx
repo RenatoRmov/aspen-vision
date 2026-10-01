@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { StockActions } from "@/components/inventory/stock-actions";
 import { MovementHistory } from "@/components/inventory/movement-history";
 import { ActiveToggle } from "@/components/inventory/active-toggle";
+import { MaletaToggle } from "@/components/inventory/maleta-toggle";
 import { ProductGallery } from "@/components/inventory/product-gallery";
 
 export default async function ProductDetailPage({
@@ -56,6 +57,20 @@ export default async function ProductDetailPage({
               <span className="text-sm text-muted-foreground">Stock Total</span>
               <StockBadge stock={product.stock} />
             </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">En Maleta?</span>
+              {canManage ? (
+                <MaletaToggle productId={product.id} inMaleta={product.inMaleta} />
+              ) : (
+                <span className="text-sm font-medium">{product.inMaleta ? "Sí" : "No"}</span>
+              )}
+            </div>
+            {product.inMaleta && product.stock <= 0 && (
+              <p className="rounded-md bg-status-critical/10 px-2 py-1.5 text-xs font-medium text-status-critical">
+                Sin stock pero marcado en maleta — sácalo antes de que un vendedor
+                intente ofrecerlo.
+              </p>
+            )}
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <Barcode className="h-3.5 w-3.5" /> Código

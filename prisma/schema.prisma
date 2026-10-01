@@ -107,6 +107,10 @@ model Product {
   images     Json     @default("[]") // ordered array of image URLs; images[0] is the cover photo
   stock      Int      @default(0) // cached — derived from InventoryMovement ledger
   active     Boolean  @default(true)
+  // Whether a sample of this model is currently out with a vendor's maleta.
+  // Combined with stock<=0 at read time (never stored) to flag models that
+  // need to be pulled from a maleta before a vendedor can sell them.
+  inMaleta   Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

@@ -88,6 +88,13 @@ export async function setProductActive(productId: string, active: boolean) {
   revalidatePath(`/inventario/${productId}`);
 }
 
+export async function setProductInMaleta(productId: string, inMaleta: boolean) {
+  await requireInventoryManager();
+  await db.product.update({ where: { id: productId }, data: { inMaleta } });
+  revalidatePath("/inventario");
+  revalidatePath(`/inventario/${productId}`);
+}
+
 const movementSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().int().refine((v) => v !== 0, "La cantidad no puede ser 0"),

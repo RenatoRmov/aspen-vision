@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Plus, PackageSearch } from "lucide-react";
+import { Plus, PackageSearch, AlertTriangle } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import {
   getCategoriesWithCounts,
+  getMaletaAlertCount,
   getProducts,
   type ProductFilters,
 } from "@/server/queries/products";
@@ -29,9 +30,10 @@ export default async function InventoryPage({
     sort: (typeof sp.sort === "string" ? sp.sort : "recent") as ProductFilters["sort"],
   };
 
-  const [products, { categories, totalActive }] = await Promise.all([
+  const [products, { categories, totalActive }, maletaAlertCount] = await Promise.all([
     getProducts(filters),
     getCategoriesWithCounts(),
+    getMaletaAlertCount(),
   ]);
 
   return (
@@ -52,6 +54,19 @@ export default async function InventoryPage({
           </div>
         }
       />
+
+      {maletaAlertCount > 0 && filters.availability !== "maleta-alert" && (
+        <Link
+          href="/inventario?disp=maleta-alert"
+          className="flex items-center gap-2 rounded-xl border border-status-critical/30 bg-status-critical/10 px-4 py-3 text-sm text-status-critical hover:bg-status-critical/15"
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>
+            <strong>{maletaAlertCount}</strong> producto(s) en maleta sin stock — hay que
+            sacarlos para que no se puedan vender. Haz clic para verlos.
+          </span>
+        </Link>
+      )}
 
       <div className="flex flex-col gap-6 lg:flex-row">
         <CategoryRail categories={categories} totalActive={totalActive} />

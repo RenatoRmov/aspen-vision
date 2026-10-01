@@ -6,10 +6,16 @@ import { LOW_STOCK_THRESHOLD } from "@/lib/constants";
 export type ProductFilters = {
   q?: string;
   categorySlug?: string;
-  availability?: "all" | "in-stock" | "low-stock" | "out-of-stock";
+  availability?: "all" | "in-stock" | "low-stock" | "out-of-stock" | "maleta-alert";
   status?: "active" | "inactive" | "all";
   sort?: "recent" | "name" | "model" | "stock-asc" | "stock-desc";
 };
+
+/** A model whose sample is still checked out in a vendedor's maleta but has
+ * no stock left to back it — needs to be pulled before someone sells it. */
+function isMaletaAlert(p: { inMaleta: boolean; stock: number }) {
+  return p.inMaleta && p.stock <= 0;
+}
 
 // Model codes mix digits and letters ("6095 AEV54", "OR00065701B", "31072 C3"),
 // so a plain string sort would put "17121…" before "6095…" (compares the
@@ -63,7 +69,16 @@ export async function getProducts(filters: ProductFilters) {
   if (filters.availability === "low-stock") {
     return products.filter((p) => p.stock > 0 && p.stock <= LOW_STOCK_THRESHOLD);
   }
+  if (filters.availability === "maleta-alert") {
+    return products.filter(isMaletaAlert);
+  }
   return products;
+}
+
+/** Live count for the Inventario alert banner — never stored, so it clears
+ * itself the instant a product is restocked or taken out of the maleta. */
+export async function getMaletaAlertCount() {
+  return db.product.count({ where: { inMaleta: true, stock: { lte: 0 } } });
 }
 
 export async function getCategories() {
