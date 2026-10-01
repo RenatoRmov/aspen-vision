@@ -56,8 +56,13 @@ function fail(err: unknown, fallback: string): Err {
 // at read time, from the sum of these.
 function lineAmounts(quantity: number, unitPrice: number, discountPercent: number) {
   const gross = quantity * unitPrice;
-  const discountAmount = Math.round(gross * (discountPercent / 100));
-  const subtotal = gross - discountAmount;
+  // Round the discounted subtotal itself (SII's convention), then derive the
+  // discount amount from it — not the other way around. Rounding the
+  // discount first and subtracting it can land on a different peso whenever
+  // gross * pct/100 sits exactly at .5, because round(x) and round(gross - x)
+  // aren't always complementary at that boundary.
+  const subtotal = Math.round(gross * (1 - discountPercent / 100));
+  const discountAmount = gross - subtotal;
   return { discountAmount, subtotal };
 }
 

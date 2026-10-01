@@ -141,8 +141,10 @@ export function SaleForm({
     () =>
       lines.map((l) => {
         const gross = l.quantity * l.unitPrice;
-        const discountAmount = Math.round(gross * (l.discountPercent / 100));
-        const subtotal = gross - discountAmount;
+        // Same rounding order as lineAmounts() in server/actions/sales.ts —
+        // round the discounted subtotal, then derive the discount amount.
+        const subtotal = Math.round(gross * (1 - l.discountPercent / 100));
+        const discountAmount = gross - subtotal;
         return { ...l, discountAmount, subtotal };
       }),
     [lines],
