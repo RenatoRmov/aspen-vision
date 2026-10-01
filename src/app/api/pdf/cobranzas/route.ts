@@ -48,6 +48,10 @@ export async function GET(request: Request) {
     const creditNoteItems = r.payments
       .filter((p) => p.kind === "NOTA_CREDITO")
       .flatMap((p) => parseCreditItems(p.creditItems));
+    const abonos = r.payments
+      .filter((p) => p.kind === "ABONO")
+      .map((p) => ({ date: p.date, amount: p.amount }))
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
 
     entry.accounts.push({
       folio: r.folio,
@@ -59,6 +63,7 @@ export async function GET(request: Request) {
       creditNoteItems,
       totalPaid: r.totalPaid,
       saldo: r.saldo,
+      abonos,
     });
     clientsMap.set(r.clientRut, entry);
   }

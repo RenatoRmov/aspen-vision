@@ -61,18 +61,33 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     color: "#666666",
   },
+  // Abono detail: one line per payment, smaller/lighter than the account
+  // row above it, so it visibly reads as a secondary breakdown rather than
+  // another account — matches the reference layout the client asked for.
+  abonoRow: { flexDirection: "row", paddingBottom: 2 },
+  abonoText: { marginLeft: 6, fontSize: 7, color: "#888888" },
   colDate: { width: "13%" },
   colAmount: { width: "17%", textAlign: "right" },
   colAmountLast: { width: "19%", textAlign: "right" },
-  totalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  totalsBox: {
     marginTop: 8,
     paddingTop: 6,
     borderTop: "1.5pt solid #111111",
   },
-  totalLabel: { fontSize: 10, fontFamily: "Helvetica-Bold" },
-  totalValue: { fontSize: 12, fontFamily: "Helvetica-Bold" },
+  totalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  totalRowFinal: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 6,
+  },
+  totalLabel: { fontSize: 9, color: "#444444" },
+  totalValue: { fontSize: 10, fontFamily: "Helvetica-Bold" },
+  totalLabelFinal: { fontSize: 10, fontFamily: "Helvetica-Bold" },
+  totalValueFinal: { fontSize: 12, fontFamily: "Helvetica-Bold" },
   noAccounts: { fontSize: 9, color: "#666666", marginTop: 8 },
   bankBox: {
     marginTop: 20,
@@ -109,6 +124,7 @@ export type StatementAccount = {
   creditNoteItems: CollectionCreditItem[];
   totalPaid: number;
   saldo: number;
+  abonos: { date: Date; amount: number }[];
 };
 
 export type StatementClient = {
@@ -143,6 +159,8 @@ export function CollectionStatementDocument({
     <Document>
       {clients.map((client) => {
         const totalPending = client.accounts.reduce((sum, a) => sum + a.saldo, 0);
+        const totalAmountSum = client.accounts.reduce((sum, a) => sum + a.totalAmount, 0);
+        const totalPaidSum = client.accounts.reduce((sum, a) => sum + a.totalPaid, 0);
         return (
           <Page key={client.clientRut} size="A4" style={styles.page}>
             <View style={styles.headerRow}>
@@ -184,34 +202,57 @@ export function CollectionStatementDocument({
                     <Text style={styles.colAmount}>Total Abonado</Text>
                     <Text style={styles.colAmountLast}>Deuda Total Pendiente</Text>
                   </View>
-                  {client.accounts.map((a) => (
-                    <View key={a.folio}>
-                      <View style={a.totalCreditNotes > 0 ? styles.tableRow : { ...styles.tableRow, ...styles.tableRowBorder }}>
-                        <Text style={styles.colFolio}>{a.folio}</Text>
-                        <Text style={styles.colDate}>{formatDateUTC(a.documentDate)}</Text>
-                        <Text style={styles.colAmount}>{formatCLP(a.netAmount)}</Text>
-                        <Text style={styles.colAmount}>{formatCLP(a.taxAmount)}</Text>
-                        <Text style={styles.colAmount}>{formatCLP(a.totalAmount)}</Text>
-                        <Text style={styles.colAmount}>{formatCLP(a.totalPaid)}</Text>
-                        <Text style={styles.colAmountLast}>{formatCLP(a.saldo)}</Text>
-                      </View>
-                      {a.totalCreditNotes > 0 && (
-                        <View style={{ ...styles.creditNoteRow, ...styles.tableRowBorder }}>
-                          <Text style={styles.creditNoteText}>
-                            N. Créd.:{" "}
-                            {a.creditNoteItems.map((it) => `${it.modelo} x${it.cantidad}`).join(", ")}
-                            {"  ("}-{formatCLP(a.totalCreditNotes)}
-                            {")"}
-                          </Text>
+                  {client.accounts.map((a) => {
+                    const hasDetail = a.totalCreditNotes > 0 || a.abonos.length > 0;
+                    return (
+                      <View key={a.folio}>
+                        <View style={hasDetail ? styles.tableRow : { ...styles.tableRow, ...styles.tableRowBorder }}>
+                          <Text style={styles.colFolio}>{a.folio}</Text>
+                          <Text style={styles.colDate}>{formatDateUTC(a.documentDate)}</Text>
+                          <Text style={styles.colAmount}>{formatCLP(a.netAmount)}</Text>
+                          <Text style={styles.colAmount}>{formatCLP(a.taxAmount)}</Text>
+                          <Text style={styles.colAmount}>{formatCLP(a.totalAmount)}</Text>
+                          <Text style={styles.colAmount}>{formatCLP(a.totalPaid)}</Text>
+                          <Text style={styles.colAmountLast}>{formatCLP(a.saldo)}</Text>
                         </View>
-                      )}
-                    </View>
-                  ))}
+                        {a.totalCreditNotes > 0 && (
+                          <View style={a.abonos.length > 0 ? styles.creditNoteRow : { ...styles.creditNoteRow, ...styles.tableRowBorder }}>
+                            <Text style={styles.creditNoteText}>
+                              N. Créd.:{" "}
+                              {a.creditNoteItems.map((it) => `${it.modelo} x${it.cantidad}`).join(", ")}
+                              {"  ("}-{formatCLP(a.totalCreditNotes)}
+                              {")"}
+                            </Text>
+                          </View>
+                        )}
+                        {a.abonos.map((p, i) => (
+                          <View
+                            key={i}
+                            style={i === a.abonos.length - 1 ? { ...styles.abonoRow, ...styles.tableRowBorder } : styles.abonoRow}
+                          >
+                            <Text style={styles.abonoText}>
+                              Abono {i + 1} — {formatDateUTC(p.date)} — {formatCLP(p.amount)}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    );
+                  })}
                 </View>
 
-                <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>Total deuda pendiente</Text>
-                  <Text style={styles.totalValue}>{formatCLP(totalPending)}</Text>
+                <View style={styles.totalsBox}>
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalLabel}>Monto total</Text>
+                    <Text style={styles.totalValue}>{formatCLP(totalAmountSum)}</Text>
+                  </View>
+                  <View style={styles.totalRow}>
+                    <Text style={styles.totalLabel}>Monto total abonado</Text>
+                    <Text style={styles.totalValue}>{formatCLP(totalPaidSum)}</Text>
+                  </View>
+                  <View style={styles.totalRowFinal}>
+                    <Text style={styles.totalLabelFinal}>Total deuda pendiente</Text>
+                    <Text style={styles.totalValueFinal}>{formatCLP(totalPending)}</Text>
+                  </View>
                 </View>
 
                 <View style={styles.bankBox}>
