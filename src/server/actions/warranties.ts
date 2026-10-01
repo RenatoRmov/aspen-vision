@@ -50,6 +50,10 @@ export async function createWarranty(input: z.infer<typeof warrantySchema>) {
       reason: data.reason,
       warrantyId: warranty.id,
       userId: session.user.id,
+      // A warranty claim already happened in the real world — the system
+      // shouldn't refuse to record it just because the shelf count says
+      // there's not enough stock. Same reasoning as confirmSale.
+      allowNegative: true,
     });
 
     return warranty.id;
